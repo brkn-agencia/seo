@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "node --watch src/index.ts",
-    "build": "node --run build:esbuild",
-    "build:esbuild": "esbuild src/index.ts --bundle --platform=node --target=node24 --outfile=dist/index.js --external:@seo/db",
+    "build": "npm run build:esbuild",
+    "build:esbuild": "esbuild src/index.ts --bundle --platform=node --target=node24 --outfile=dist/index.js --packages=bundle",
     "start": "node dist/index.js"
   },
   "dependencies": {
