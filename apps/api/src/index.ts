@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import authRouter from "./routes/auth.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,19 +15,12 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     version: "1.0.0",
     service: "seo-agency-api",
+    db: "neon-connected",
   });
 });
 
-// ── STORES ────────────────────────────────────────────────────────────────────
-app.get("/api/stores", async (req, res) => {
-  try {
-    const { db, stores } = await import("@seo/db");
-    const result = await db.select().from(stores);
-    res.json({ data: result });
-  } catch (err) {
-    res.status(500).json({ error: "Error al obtener tiendas" });
-  }
-});
+// ── RUTAS ─────────────────────────────────────────────────────────────────────
+app.use("/", authRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
@@ -35,6 +29,8 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 SEO Agency API corriendo en puerto ${PORT}`);
+  console.log(`   Health: http://localhost:${PORT}/health`);
+  console.log(`   OAuth:  http://localhost:${PORT}/auth/install`);
 });
 
 export default app;
