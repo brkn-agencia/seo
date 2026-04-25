@@ -6,6 +6,7 @@ import { useState } from "react";
 export default function ProductPage() {
   const { storeId, productId: rawId } = useParams<{ storeId: string; productId: string }>();
   const productId = rawId ? decodeURIComponent(rawId) : "";
+  console.log("productId:", productId, "rawId:", rawId);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [lastGenerated, setLastGenerated] = useState<any>(null);
