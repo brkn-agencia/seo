@@ -142,7 +142,7 @@ export async function generateSEO(
     };
   } catch (err: any) {
     console.error("Claude error:", err.message);
-    return { success: false, error: err.message };
+    console.error("Claude full error:", JSON.stringify(err.response?.data || err.message)); return { success: false, error: err.message };
   }
 }
 
