@@ -7,7 +7,17 @@ import seoRouter from "./routes/seo.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://seo-web-13yk.onrender.com",
+    "https://seo.bruda.io",
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
 app.use(express.json());
 
 app.get("/health", (req, res) => {
@@ -32,7 +42,6 @@ app.listen(PORT, () => {
   console.log(`🚀 SEO Agency API corriendo en puerto ${PORT}`);
   console.log(`   Health:  https://seo.bruda.io/health`);
   console.log(`   Stores:  https://seo.bruda.io/api/stores`);
-  console.log(`   Generate: POST /api/stores/:id/products/:id/generate`);
 });
 
 export default app;
