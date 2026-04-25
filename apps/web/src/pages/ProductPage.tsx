@@ -61,7 +61,7 @@ export default function ProductPage() {
           <div style={{ display: "flex", gap: 8 }}>
             <button
               style={styles.btnPrimary}
-              onClick={() => generate.mutate()}
+              onClick={() => { console.log("Clicking generate, productId:", productId, "storeId:", storeId); generate.mutate(); }}
               disabled={generate.isPending}
             >
               {generate.isPending ? "⏳ Generando con Claude..." : "✨ Generar SEO con IA"}
