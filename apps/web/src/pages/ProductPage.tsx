@@ -27,6 +27,10 @@ export default function ProductPage() {
       setLastGenerated(data.data);
       qc.invalidateQueries({ queryKey: ["versions", productId] });
     },
+    onError: (err: any) => {
+      console.error("Generate error:", err);
+      alert("Error: " + (err.response?.data?.error || err.message));
+    },
   });
 
   const product = productData?.data;
