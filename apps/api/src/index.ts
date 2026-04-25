@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import authRouter from "./routes/auth.js";
+import storesRouter from "./routes/stores.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +20,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/", authRouter);
+app.use("/", storesRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });
@@ -28,6 +30,7 @@ app.listen(PORT, () => {
   console.log(`🚀 SEO Agency API corriendo en puerto ${PORT}`);
   console.log(`   Health: https://seo.bruda.io/health`);
   console.log(`   OAuth:  https://seo.bruda.io/auth/install`);
+  console.log(`   Stores: https://seo.bruda.io/api/stores`);
 });
 
 export default app;
