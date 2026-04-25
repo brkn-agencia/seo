@@ -96,7 +96,8 @@ export async function generateSEO(
     const content = response.content[0];
     if (content.type !== "text") return { success: false, error: "Respuesta inesperada de Claude" };
 
-    const generated = JSON.parse(content.text.trim());
+    const raw = content.text.trim().replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const generated = JSON.parse(raw);
 
     // Tokens usados
     const tokensIn = response.usage.input_tokens;
@@ -144,3 +145,5 @@ export async function generateSEO(
     return { success: false, error: err.message };
   }
 }
+
+// Parchar el archivo — reemplazar la línea del parse
