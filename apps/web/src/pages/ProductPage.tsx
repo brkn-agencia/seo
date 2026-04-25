@@ -4,23 +4,24 @@ import { getProduct, generateSEO, getVersions } from "../api";
 import { useState } from "react";
 
 export default function ProductPage() {
-  const { storeId, productId } = useParams<{ storeId: string; productId: string }>();
+  const { storeId, productId: rawId } = useParams<{ storeId: string; productId: string }>();
+  const productId = rawId ? decodeURIComponent(rawId) : "";
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [lastGenerated, setLastGenerated] = useState<any>(null);
 
   const { data: productData, isLoading } = useQuery({
     queryKey: ["product", productId],
-    queryFn: () => getProduct(storeId!, productId!),
+    queryFn: () => getProduct(storeId!, productId),
   });
 
   const { data: versionsData } = useQuery({
     queryKey: ["versions", productId],
-    queryFn: () => getVersions(storeId!, productId!),
+    queryFn: () => getVersions(storeId!, productId),
   });
 
   const generate = useMutation({
-    mutationFn: () => generateSEO(storeId!, productId!),
+    mutationFn: () => generateSEO(storeId!, productId),
     onSuccess: (data) => {
       setLastGenerated(data.data);
       qc.invalidateQueries({ queryKey: ["versions", productId] });
@@ -64,7 +65,6 @@ export default function ProductPage() {
         </div>
 
         <div style={styles.body}>
-          {/* COLUMNA IZQUIERDA — ANTES */}
           <div style={styles.col}>
             <div style={styles.colHead}>
               <span style={styles.colTitle}>Estado actual</span>
@@ -104,7 +104,6 @@ export default function ProductPage() {
             </div>
           </div>
 
-          {/* COLUMNA DERECHA — DESPUÉS */}
           <div style={{ ...styles.col, borderLeft: "1px solid #E5E3DB" }}>
             <div style={styles.colHead}>
               <span style={styles.colTitle}>Generado por IA</span>
@@ -137,34 +136,22 @@ export default function ProductPage() {
                 <>
                   <div style={styles.field}>
                     <div style={styles.fieldLabel}>SEO Title</div>
-                    <div style={{ ...styles.fieldVal, ...styles.improved }}>
-                      {latest.after?.seo_title}
-                    </div>
-                    <div style={{ ...styles.charCount, color: "#0F6E56" }}>
-                      {(latest.after?.seo_title || "").length} caracteres ✓
-                    </div>
+                    <div style={{ ...styles.fieldVal, ...styles.improved }}>{latest.after?.seo_title}</div>
+                    <div style={{ ...styles.charCount, color: "#0F6E56" }}>{(latest.after?.seo_title || "").length} caracteres ✓</div>
                   </div>
                   <div style={styles.field}>
                     <div style={styles.fieldLabel}>Meta Description</div>
-                    <div style={{ ...styles.fieldVal, ...styles.improved }}>
-                      {latest.after?.seo_description}
-                    </div>
-                    <div style={{ ...styles.charCount, color: "#0F6E56" }}>
-                      {(latest.after?.seo_description || "").length} caracteres ✓
-                    </div>
+                    <div style={{ ...styles.fieldVal, ...styles.improved }}>{latest.after?.seo_description}</div>
+                    <div style={{ ...styles.charCount, color: "#0F6E56" }}>{(latest.after?.seo_description || "").length} caracteres ✓</div>
                   </div>
                   <div style={styles.field}>
                     <div style={styles.fieldLabel}>URL Handle</div>
-                    <div style={{ ...styles.fieldVal, ...styles.improved }}>
-                      {latest.after?.handle}
-                    </div>
+                    <div style={{ ...styles.fieldVal, ...styles.improved }}>{latest.after?.handle}</div>
                   </div>
                   <div style={styles.divider} />
                   <div style={styles.field}>
                     <div style={styles.fieldLabel}>Descripción generada</div>
-                    <div style={{ ...styles.fieldVal, ...styles.improved, fontSize: 12 }}>
-                      {latest.after?.description}
-                    </div>
+                    <div style={{ ...styles.fieldVal, ...styles.improved, fontSize: 12 }}>{latest.after?.description}</div>
                   </div>
                   <div style={styles.costRow}>
                     <span>Modelo: <strong>{latest.model}</strong></span>
@@ -174,15 +161,11 @@ export default function ProductPage() {
                 </>
               )}
             </div>
-
-            {/* PREVIEW GOOGLE */}
             {latest && !generate.isPending && (
               <div style={styles.preview}>
                 <div style={styles.previewLabel}>Preview Google</div>
                 <div style={styles.googleCard}>
-                  <div style={styles.googleUrl}>
-                    {product?.handle ? `tutienda.com/${latest.after?.handle}` : "tutienda.com/..."}
-                  </div>
+                  <div style={styles.googleUrl}>tutienda.com/{latest.after?.handle}</div>
                   <div style={styles.googleTitle}>{latest.after?.seo_title}</div>
                   <div style={styles.googleDesc}>{latest.after?.seo_description}</div>
                 </div>

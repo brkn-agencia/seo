@@ -112,7 +112,7 @@ export default function StorePage() {
               <div
                 key={p.id}
                 style={styles.tableRow}
-                onClick={() => navigate(`/stores/${storeId}/products/${p.id}`)}
+                onClick={() => navigate(`/stores/${storeId}/products/${encodeURIComponent(p.id)}`)}
               >
                 <div style={{ flex: 3 }}>
                   <div style={styles.productName}>{p.name}</div>
