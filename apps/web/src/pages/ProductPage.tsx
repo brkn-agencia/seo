@@ -63,6 +63,12 @@ export default function ProductPage() {
   const qc = useQueryClient();
   const [generated, setGenerated] = useState<any>(null);
 
+  const { data: storeData } = useQuery({
+    queryKey: ["store", storeId],
+    queryFn: () => import("../api").then(m => m.getStore(storeId!)),
+  });
+  const storeName = storeData?.data?.name || "la tienda";
+
   const { data: productData, isLoading } = useQuery({
     queryKey: ["product", productId],
     queryFn: () => getProduct(storeId!, productId),
