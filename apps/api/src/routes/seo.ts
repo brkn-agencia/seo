@@ -9,7 +9,7 @@ const router = Router();
 router.post("/api/stores/:storeId/products/:productId/generate", async (req: Request, res: Response) => {
   try {
     const { storeId, productId } = req.params;
-    const { api_key } = req.body;
+    const { api_key } = req.body || {};
 
     console.log(`Generando SEO para producto ${productId}...`);
     const result = await generateSEO(productId, storeId, api_key);
