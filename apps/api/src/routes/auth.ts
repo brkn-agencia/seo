@@ -34,27 +34,39 @@ router.get("/auth/callback", async (req: Request, res: Response) => {
     return;
   }
   try {
+    // 1. Intercambiar code por token
     const tokenRes = await axios.post(
       `https://www.tiendanube.com/apps/authorize/token`,
-      {
+      new URLSearchParams({
         client_id: TN_CLIENT_ID,
         client_secret: TN_CLIENT_SECRET,
         grant_type: "authorization_code",
-        code,
+        code: String(code),
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
       }
     );
+
+    console.log("Token response:", JSON.stringify(tokenRes.data));
     const { access_token, user_id } = tokenRes.data;
+
+    // 2. Obtener datos de la tienda
     const storeRes = await axios.get(
       `https://api.tiendanube.com/v1/${user_id}/store`,
       {
         headers: {
-          Authorization: `bearer ${access_token}`,
-          "User-Agent": `SEO Agency App (${TN_CLIENT_ID})`,
+          Authentication: `bearer ${access_token}`,
+          "User-Agent": `Bruda SEO App (${TN_CLIENT_ID})`,
         },
       }
     );
+
     const storeData = storeRes.data;
     const storeId = `tn_${user_id}`;
+
     await db
       .insert(stores)
       .values({
@@ -72,6 +84,7 @@ router.get("/auth/callback", async (req: Request, res: Response) => {
           updated_at: new Date(),
         },
       });
+
     res.json({
       success: true,
       store_id: storeId,
@@ -80,7 +93,10 @@ router.get("/auth/callback", async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("OAuth error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Error en la autenticación con Tienda Nube" });
+    res.status(500).json({
+      error: "Error en la autenticación con Tienda Nube",
+      detail: err.response?.data || err.message,
+    });
   }
 });
 
