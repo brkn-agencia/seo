@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { db, products_cache, seo_versions } from "@seo/db";
 import { eq } from "drizzle-orm";
 import { generateSEO } from "../services/claude.js";
+import { applyVersion } from "../services/apply.js";
 
 const router = Router();
 
@@ -20,6 +21,36 @@ router.post("/api/stores/:storeId/products/:productId/generate", async (req: Req
     }
 
     res.json({ success: true, data: result.data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── APLICAR (APROBAR) UNA VERSIÓN ─────────────────────────────────────────────
+// Escribe la versión generada de vuelta a Tienda Nube.
+router.post("/api/stores/:storeId/versions/:versionId/apply", async (req: Request, res: Response) => {
+  try {
+    const { versionId } = req.params;
+    const result = await applyVersion(versionId);
+    if (!result.success) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json({ success: true, message: "Cambios aplicados en Tienda Nube" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── RECHAZAR UNA VERSIÓN ──────────────────────────────────────────────────────
+router.post("/api/stores/:storeId/versions/:versionId/reject", async (req: Request, res: Response) => {
+  try {
+    const { versionId } = req.params;
+    await db
+      .update(seo_versions)
+      .set({ status: "rejected" })
+      .where(eq(seo_versions.id, versionId));
+    res.json({ success: true, message: "Versión rechazada" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

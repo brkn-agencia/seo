@@ -29,3 +29,26 @@ export const generateSEO = (storeId: string, productId: string) =>
 
 export const getVersions = (storeId: string, productId: string) =>
   api.get(`/api/stores/${storeId}/products/${productId}/versions`).then(r => r.data);
+
+export const applyVersion = (storeId: string, versionId: string) =>
+  api.post(`/api/stores/${storeId}/versions/${versionId}/apply`).then(r => r.data);
+
+export const rejectVersion = (storeId: string, versionId: string) =>
+  api.post(`/api/stores/${storeId}/versions/${versionId}/reject`).then(r => r.data);
+
+// ── AUTOMATIZACIÓN ────────────────────────────────────────────────────────────
+export const updateStoreSettings = (
+  storeId: string,
+  settings: { automation_mode?: "manual" | "suggest" | "auto"; preferred_model?: string }
+) => api.patch(`/api/stores/${storeId}/settings`, settings).then(r => r.data);
+
+export const optimizeStore = (
+  storeId: string,
+  opts: { scoreThreshold?: number; autoApply?: boolean; limit?: number } = {}
+) => api.post(`/api/stores/${storeId}/optimize`, opts).then(r => r.data);
+
+export const getJob = (jobId: string) =>
+  api.get(`/api/jobs/${jobId}`).then(r => r.data);
+
+export const getStoreJobs = (storeId: string) =>
+  api.get(`/api/stores/${storeId}/jobs`).then(r => r.data);

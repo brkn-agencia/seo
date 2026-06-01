@@ -28,6 +28,29 @@ router.get("/api/stores/:storeId", async (req: Request, res: Response) => {
   }
 });
 
+// ── CONFIGURAR AUTOMATIZACIÓN / AJUSTES ───────────────────────────────────────
+router.patch("/api/stores/:storeId/settings", async (req: Request, res: Response) => {
+  try {
+    const { storeId } = req.params;
+    const { automation_mode, preferred_model } = req.body || {};
+
+    const valid = ["manual", "suggest", "auto"];
+    if (automation_mode && !valid.includes(automation_mode)) {
+      res.status(400).json({ error: `automation_mode inválido. Use: ${valid.join(", ")}` });
+      return;
+    }
+
+    const updates: Record<string, any> = { updated_at: new Date() };
+    if (automation_mode) updates.automation_mode = automation_mode;
+    if (preferred_model) updates.preferred_model = preferred_model;
+
+    await db.update(stores).set(updates).where(eq(stores.id, storeId));
+    res.json({ success: true, message: "Ajustes actualizados" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── SYNC DE PRODUCTOS ─────────────────────────────────────────────────────────
 router.post("/api/stores/:storeId/sync", async (req: Request, res: Response) => {
   try {
