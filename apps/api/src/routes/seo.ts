@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { db, products_cache, seo_versions } from "@seo/db";
 import { eq } from "drizzle-orm";
 import { generateSEO } from "../services/claude.js";
-import { applyVersion } from "../services/apply.js";
+import { applyVersion, previewVersion } from "../services/apply.js";
 
 const router = Router();
 
@@ -37,6 +37,20 @@ router.post("/api/stores/:storeId/versions/:versionId/apply", async (req: Reques
       return;
     }
     res.json({ success: true, message: "Cambios aplicados en Tienda Nube" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DRY-RUN: VER QUÉ SE ENVIARÍA A TIENDA NUBE ────────────────────────────────
+router.get("/api/stores/:storeId/versions/:versionId/preview", async (req: Request, res: Response) => {
+  try {
+    const result = await previewVersion(req.params.versionId);
+    if (!result.success) {
+      res.status(404).json({ error: result.error });
+      return;
+    }
+    res.json({ data: result });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -36,6 +36,10 @@ export const applyVersion = (storeId: string, versionId: string) =>
 export const rejectVersion = (storeId: string, versionId: string) =>
   api.post(`/api/stores/${storeId}/versions/${versionId}/reject`).then(r => r.data);
 
+// Dry-run: devuelve el payload exacto que se enviaría a Tienda Nube, sin escribir.
+export const previewVersion = (storeId: string, versionId: string) =>
+  api.get(`/api/stores/${storeId}/versions/${versionId}/preview`).then(r => r.data);
+
 // ── AUTOMATIZACIÓN ────────────────────────────────────────────────────────────
 export const updateStoreSettings = (
   storeId: string,

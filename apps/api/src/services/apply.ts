@@ -4,6 +4,58 @@ import { tnClient, tnLocalized } from "../lib/tn.js";
 
 export type ApplyResult = { success: boolean; error?: string };
 
+export interface ApplyPlan {
+  // Body del PUT al producto (campos en formato localizado de Tienda Nube).
+  productPayload: Record<string, any>;
+  // Updates de alt text, uno por imagen: PUT /products/:id/images/:imgId { alt: [...] }
+  imageUpdates: { id: string; alt: string }[];
+}
+
+/**
+ * Construye —sin efectos secundarios— el plan exacto de lo que se escribiría en
+ * Tienda Nube a partir del `after` de una versión. Compartido por applyVersion
+ * (escribe) y previewVersion (dry-run), para que nunca se desincronicen.
+ */
+export function buildApplyPlan(after: Record<string, any>): ApplyPlan {
+  const productPayload: Record<string, any> = {};
+  if (after.seo_title) productPayload.seo_title = tnLocalized(after.seo_title);
+  if (after.seo_description) productPayload.seo_description = tnLocalized(after.seo_description);
+  if (after.handle) productPayload.handle = tnLocalized(after.handle);
+  if (after.description) productPayload.description = tnLocalized(after.description);
+
+  const imageUpdates = Array.isArray(after.images_alt)
+    ? after.images_alt
+        .filter((img: any) => img?.id && img?.alt)
+        .map((img: any) => ({ id: String(img.id), alt: String(img.alt) }))
+    : [];
+
+  return { productPayload, imageUpdates };
+}
+
+/**
+ * Dry-run: devuelve exactamente lo que se enviaría a Tienda Nube para una versión,
+ * sin escribir nada. Útil para validar el formato antes de activar el modo auto.
+ */
+export async function previewVersion(
+  versionId: string
+): Promise<{ success: boolean; error?: string; plan?: ApplyPlan; tn_product_id?: string }> {
+  const version = await db.query.seo_versions.findFirst({
+    where: eq(seo_versions.id, versionId),
+  });
+  if (!version) return { success: false, error: "Versión no encontrada" };
+
+  const product = await db.query.products_cache.findFirst({
+    where: eq(products_cache.id, version.product_id),
+  });
+  if (!product) return { success: false, error: "Producto no encontrado" };
+
+  return {
+    success: true,
+    tn_product_id: product.tn_product_id,
+    plan: buildApplyPlan(version.after as Record<string, any>),
+  };
+}
+
 /**
  * Aplica una versión de SEO aprobada escribiendo los cambios de vuelta a Tienda Nube.
  * Actualiza el producto (title/meta/handle/description) y, si la versión trae
@@ -33,23 +85,16 @@ export async function applyVersion(versionId: string): Promise<ApplyResult> {
 
     const after = version.after as Record<string, any>;
     const client = tnClient(store.tn_store_id, store.tn_access_token_enc);
+    const { productPayload, imageUpdates } = buildApplyPlan(after);
 
     // ── Campos de producto ──────────────────────────────────────────────────
-    const payload: Record<string, any> = {};
-    if (after.seo_title) payload.seo_title = tnLocalized(after.seo_title);
-    if (after.seo_description) payload.seo_description = tnLocalized(after.seo_description);
-    if (after.handle) payload.handle = tnLocalized(after.handle);
-    if (after.description) payload.description = tnLocalized(after.description);
-
-    if (Object.keys(payload).length > 0) {
-      await client.put(`/products/${product.tn_product_id}`, payload);
+    if (Object.keys(productPayload).length > 0) {
+      await client.put(`/products/${product.tn_product_id}`, productPayload);
     }
 
     // ── Alt text de imágenes (opcional) ───────────────────────────────────────
-    // after.images_alt = [{ id: "<image_id>", alt: "texto" }, ...]
-    if (Array.isArray(after.images_alt)) {
-      for (const img of after.images_alt) {
-        if (!img?.id || !img?.alt) continue;
+    if (imageUpdates.length > 0) {
+      for (const img of imageUpdates) {
         try {
           await client.put(`/products/${product.tn_product_id}/images/${img.id}`, {
             alt: [img.alt],
