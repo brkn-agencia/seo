@@ -25,7 +25,14 @@ Cada tienda define su `automation_mode`:
 | `suggest` | Sincroniza y genera sugerencias (quedan `pending` para aprobar) |
 | `auto` | Sincroniza, genera y **aplica** los cambios directo en Tienda Nube |
 
+### Créditos de IA por cliente
+Cada tienda carga **su propia API key de Anthropic** (`PUT /api/stores/:storeId/anthropic-key`),
+que se verifica contra la API y se guarda encriptada. La automatización **saltea** las tiendas
+sin key propia, para que cada cliente consuma sus propios créditos y nunca la key global de la agencia.
+
 ### Endpoints clave
+- `PUT  /api/stores/:storeId/anthropic-key` — cargar y verificar la key del cliente
+- `DELETE /api/stores/:storeId/anthropic-key` — quitar la key
 - `PATCH /api/stores/:storeId/settings` — configurar `automation_mode` / `preferred_model`
 - `POST /api/stores/:storeId/optimize` — lanzar optimización masiva (job en lote)
 - `GET  /api/jobs/:jobId` — progreso del job

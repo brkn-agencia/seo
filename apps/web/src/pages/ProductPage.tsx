@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { getProduct, generateSEO, getVersions } from "../api";
+import { getProduct, generateSEO, getVersions, applyVersion, rejectVersion } from "../api";
 import { useState } from "react";
 
 function Field({ label, before, after, status, onApply, chars }: {
@@ -95,6 +95,21 @@ export default function ProductPage() {
   const latest = generated || (versions.length > 0 ? versions[versions.length - 1] : null);
   const after = latest?.after || {};
   const before = latest?.before || {};
+  const versionId = latest?.version_id || latest?.id;
+  const isApplied = latest?.status === "applied";
+
+  const apply = useMutation({
+    mutationFn: () => applyVersion(storeId!, versionId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["versions", productId] });
+      qc.invalidateQueries({ queryKey: ["product", productId] });
+    },
+    onError: (err: any) => alert("Error al aplicar: " + (err.response?.data?.error || err.message)),
+  });
+  const reject = useMutation({
+    mutationFn: () => rejectVersion(storeId!, versionId),
+    onSuccess: () => { setGenerated(null); qc.invalidateQueries({ queryKey: ["versions", productId] }); },
+  });
 
   if (isLoading) return <div style={styles.loading}>Cargando producto...</div>;
 
@@ -130,6 +145,28 @@ export default function ProductPage() {
           </button>
         </div>
 
+        {latest && !generate.isPending && (
+          <div style={styles.actionBar}>
+            {isApplied ? (
+              <span style={{ fontSize: 13, color: "#1D9E75", fontWeight: 500 }}>✓ Esta versión ya fue aplicada en Tienda Nube</span>
+            ) : (
+              <>
+                <span style={{ fontSize: 12, color: "#888" }}>
+                  Revisá los cambios generados y aplicalos en Tienda Nube cuando estés conforme.
+                </span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button style={styles.btnReject} onClick={() => reject.mutate()} disabled={reject.isPending || !versionId}>
+                    Rechazar
+                  </button>
+                  <button style={styles.btnPrimary} onClick={() => apply.mutate()} disabled={apply.isPending || !versionId}>
+                    {apply.isPending ? "Aplicando..." : "Aplicar en tienda"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {generate.isPending && (
           <div style={styles.generating}>
             <div style={{fontSize:24,marginBottom:8}}>⏳</div>
@@ -142,15 +179,15 @@ export default function ProductPage() {
           <div style={styles.fieldsWrap}>
 
             <div style={styles.sectionTitle}>Identificación del producto</div>
-            <Field label="Nombre del producto" before={product?.name || ""} after={after.product_name || ""} status={after.product_name ? "generated" : "missing"} onApply={() => console.log("apply name")} />
+            <Field label="Nombre del producto" before={product?.name || ""} after={after.product_name || ""} status={after.product_name ? "generated" : "missing"} onApply={() => apply.mutate()} />
 
             <div style={styles.sectionTitle}>SEO — búsqueda en Google e IA</div>
-            <Field label="SEO Title" before={product?.seo_title || ""} after={after.seo_title || ""} status={after.seo_title ? "generated" : "missing"} onApply={() => console.log("apply title")} chars />
-            <Field label="Meta Description" before={product?.seo_description || ""} after={after.seo_description || ""} status={after.seo_description ? "generated" : "missing"} onApply={() => console.log("apply desc")} chars />
-            <Field label="URL Handle" before={product?.handle || ""} after={after.handle || ""} status={after.handle ? "generated" : "missing"} onApply={() => console.log("apply handle")} />
+            <Field label="SEO Title" before={product?.seo_title || ""} after={after.seo_title || ""} status={after.seo_title ? "generated" : "missing"} onApply={() => apply.mutate()} chars />
+            <Field label="Meta Description" before={product?.seo_description || ""} after={after.seo_description || ""} status={after.seo_description ? "generated" : "missing"} onApply={() => apply.mutate()} chars />
+            <Field label="URL Handle" before={product?.handle || ""} after={after.handle || ""} status={after.handle ? "generated" : "missing"} onApply={() => apply.mutate()} />
 
             <div style={styles.sectionTitle}>Contenido del producto</div>
-            <Field label="Descripción" before={product?.description || ""} after={after.description || ""} status={after.description ? "generated" : "missing"} onApply={() => console.log("apply description")} />
+            <Field label="Descripción" before={product?.description || ""} after={after.description || ""} status={after.description ? "generated" : "missing"} onApply={() => apply.mutate()} />
 
             {after.composition && (
               <div style={styles.compositionBox}>
@@ -186,7 +223,7 @@ export default function ProductPage() {
                   </table>
                   <div style={styles.tableActions}>
                     <span style={{fontSize:11,color:"#BA7517"}}>⚠ Verificar con proveedor antes de aplicar</span>
-                    <button style={styles.btnApply} onClick={() => console.log("apply size table")}>Aplicar tabla en descripción</button>
+                    <button style={styles.btnApply} onClick={() => apply.mutate()}>Aplicar tabla en descripción</button>
                   </div>
                 </div>
               </>
@@ -297,4 +334,6 @@ const styles: Record<string, React.CSSProperties> = {
   googleDesc:{fontSize:12,color:"#444",lineHeight:1.5},
   loading:{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontSize:14,color:"#888"},
   btnPrimary:{fontSize:13,padding:"8px 16px",background:"#534AB7",color:"white",border:"none",borderRadius:6,cursor:"pointer",fontWeight:500},
+  actionBar:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 24px",background:"#F8F7FF",borderBottom:"1px solid #E5E3DB"},
+  btnReject:{fontSize:13,padding:"8px 16px",background:"white",color:"#A32D2D",border:"1px solid #E5E3DB",borderRadius:6,cursor:"pointer",fontWeight:500},
 };

@@ -1,6 +1,122 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { getStore, getProducts, syncStore } from "../api";
+import { useState } from "react";
+import {
+  getStore, getProducts, syncStore,
+  setAnthropicKey, deleteAnthropicKey, updateStoreSettings, optimizeStore,
+} from "../api";
+
+const MODE_LABELS: Record<string, string> = {
+  manual: "Manual — solo acciones a mano",
+  suggest: "Sugerir — genera y espera tu aprobación",
+  auto: "Automático — genera y aplica solo",
+};
+
+function SettingsPanel({ storeId, store }: { storeId: string; store: any }) {
+  const qc = useQueryClient();
+  const [keyInput, setKeyInput] = useState("");
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["store", storeId] });
+
+  const saveKey = useMutation({
+    mutationFn: () => setAnthropicKey(storeId, keyInput.trim()),
+    onSuccess: () => { setKeyInput(""); invalidate(); },
+    onError: (err: any) => alert("Error: " + (err.response?.data?.error || err.message)),
+  });
+  const removeKey = useMutation({
+    mutationFn: () => deleteAnthropicKey(storeId),
+    onSuccess: invalidate,
+  });
+  const saveMode = useMutation({
+    mutationFn: (mode: string) => updateStoreSettings(storeId, { automation_mode: mode as any }),
+    onSuccess: invalidate,
+  });
+  const optimize = useMutation({
+    mutationFn: () => optimizeStore(storeId, {}),
+    onSuccess: (d: any) => alert(`Optimización lanzada (job ${d.job_id}). Aplica solo: ${d.auto_apply ? "sí" : "no"}.`),
+    onError: (err: any) => alert("Error: " + (err.response?.data?.error || err.message)),
+  });
+
+  const hasKey = store?.has_anthropic_key;
+  const mode = store?.automation_mode || "manual";
+
+  return (
+    <div style={panel.wrap}>
+      {/* API key del cliente */}
+      <div style={panel.card}>
+        <div style={panel.cardTitle}>Créditos de IA del cliente</div>
+        {hasKey ? (
+          <div style={panel.row}>
+            <span style={panel.ok}>✓ API key cargada</span>
+            <span style={panel.muted}>
+              {store.anthropic_key_verified_at
+                ? `verificada ${new Date(store.anthropic_key_verified_at).toLocaleDateString()}`
+                : ""}
+            </span>
+            <button style={panel.btnGhost} onClick={() => removeKey.mutate()} disabled={removeKey.isPending}>
+              Quitar
+            </button>
+          </div>
+        ) : (
+          <div style={panel.row}>
+            <input
+              type="password"
+              placeholder="sk-ant-..."
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              style={panel.input}
+            />
+            <button
+              style={panel.btnPrimary}
+              onClick={() => saveKey.mutate()}
+              disabled={saveKey.isPending || !keyInput.trim()}
+            >
+              {saveKey.isPending ? "Verificando..." : "Guardar y verificar"}
+            </button>
+          </div>
+        )}
+        <div style={panel.hint}>
+          Cada tienda consume sus propios créditos de Anthropic. Sin key cargada, la automatización no corre.
+        </div>
+      </div>
+
+      {/* Modo de automatización */}
+      <div style={panel.card}>
+        <div style={panel.cardTitle}>Modo de automatización</div>
+        <select
+          value={mode}
+          onChange={(e) => saveMode.mutate(e.target.value)}
+          disabled={saveMode.isPending}
+          style={panel.select}
+        >
+          {Object.entries(MODE_LABELS).map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+        <button
+          style={{ ...panel.btnPrimary, marginTop: 10, opacity: hasKey ? 1 : 0.5 }}
+          onClick={() => optimize.mutate()}
+          disabled={optimize.isPending || !hasKey}
+        >
+          {optimize.isPending ? "Lanzando..." : "Optimizar toda la tienda ahora"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const panel: Record<string, React.CSSProperties> = {
+  wrap: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: "0 24px 16px" },
+  card: { background: "white", border: "1px solid #E5E3DB", borderRadius: 8, padding: "14px 16px" },
+  cardTitle: { fontSize: 12, fontWeight: 600, color: "#2C2C2A", marginBottom: 10 },
+  row: { display: "flex", alignItems: "center", gap: 8 },
+  input: { flex: 1, fontSize: 13, padding: "7px 10px", border: "1px solid #E5E3DB", borderRadius: 6, fontFamily: "monospace" },
+  select: { width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid #E5E3DB", borderRadius: 6, background: "white" },
+  btnPrimary: { fontSize: 13, padding: "7px 14px", background: "#534AB7", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 },
+  btnGhost: { fontSize: 12, padding: "5px 10px", background: "white", color: "#A32D2D", border: "1px solid #E5E3DB", borderRadius: 6, cursor: "pointer" },
+  ok: { fontSize: 13, color: "#0F6E56", fontWeight: 500 },
+  muted: { fontSize: 11, color: "#888", flex: 1 },
+  hint: { fontSize: 11, color: "#aaa", marginTop: 8, lineHeight: 1.4 },
+};
 
 function ScoreBar({ score }: { score: number }) {
   const color = score >= 70 ? "#1D9E75" : score >= 40 ? "#BA7517" : "#E24B4A";
@@ -97,6 +213,8 @@ export default function StorePage() {
             <div style={styles.metricSub}>score 80+</div>
           </div>
         </div>
+
+        <SettingsPanel storeId={storeId!} store={store} />
 
         <div style={styles.section}>
           <div style={styles.sectionTitle}>Productos — ordenados por score (peores primero)</div>

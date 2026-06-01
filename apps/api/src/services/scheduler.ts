@@ -18,6 +18,12 @@ export async function runAutomationPass(): Promise<void> {
     if (mode === "manual") continue;
     if (!store.tn_access_token_enc || !store.tn_store_id) continue;
 
+    // Cada cliente usa sus propios créditos: sin API key propia no automatizamos.
+    if (!store.anthropic_api_key_enc) {
+      console.log(`⏭️  [auto] ${store.name}: sin API key de Anthropic — se saltea`);
+      continue;
+    }
+
     try {
       console.log(`⏳ [auto] Sincronizando ${store.name} (${mode})...`);
       await syncStore(store.id);
