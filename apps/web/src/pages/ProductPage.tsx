@@ -189,6 +189,30 @@ export default function ProductPage() {
             <div style={styles.sectionTitle}>Contenido del producto</div>
             <Field label="Descripción" before={product?.description || ""} after={after.description || ""} status={after.description ? "generated" : "missing"} onApply={() => apply.mutate()} />
 
+            {after.images_alt?.length > 0 && (
+              <>
+                <div style={styles.sectionTitle}>Alt text de imágenes (SEO)</div>
+                <div style={styles.colorsWrap}>
+                  {after.images_alt.map((img: any, i: number) => {
+                    const src = (product?.images as any[])?.find((p) => String(p.id) === String(img.id))?.src;
+                    return (
+                      <div key={img.id || i} style={styles.colorRow}>
+                        {src
+                          ? <img src={src} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                          : <div style={{ width: 40, height: 40, borderRadius: 6, background: "#F1EFE8", flexShrink: 0 }} />}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: "#2C2C2A" }}>{img.alt}</div>
+                          <div style={{ fontSize: 10, color: img.alt?.length <= 125 ? "#0F6E56" : "#BA7517" }}>
+                            {img.alt?.length || 0} caracteres {img.alt?.length <= 125 ? "✓" : "⚠"}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             {after.composition && (
               <div style={styles.compositionBox}>
                 <span style={{fontSize:11,fontWeight:600,color:"#888",textTransform:"uppercase" as const,letterSpacing:"0.04em"}}>Composición detectada</span>

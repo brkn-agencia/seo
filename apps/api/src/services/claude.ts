@@ -21,6 +21,13 @@ function getClient(apiKey: string) {
 }
 
 function buildPrompt(product: any, brandProfile: any): string {
+  const imgs: any[] = Array.isArray(product.images) ? product.images : [];
+  const imagesBlock = imgs.length
+    ? imgs
+        .map((img, i) => `- id ${img.id}: imagen ${i + 1}${img.alt ? ` (alt actual: "${img.alt}")` : " (sin alt)"}`)
+        .join("\n")
+    : "";
+
   return `Sos un experto en SEO para ecommerce argentino. Tu tarea es optimizar la ficha de un producto para que aparezca en Google y en buscadores de IA como ChatGPT y Perplexity.
 
 PRODUCTO:
@@ -30,6 +37,7 @@ PRODUCTO:
 - Meta description actual: ${product.seo_description || "Sin meta description"}
 - URL actual: ${product.handle || "Sin handle"}
 - Marca: ${product.brand || "Sin marca"}
+${imgs.length ? `\nIMÁGENES (generá un alt text para cada una, usando su id exacto):\n${imagesBlock}` : ""}
 
 ${brandProfile ? `PERFIL DE MARCA:
 - Tono: ${brandProfile.tone_base} — ${brandProfile.tone_custom || ""}
@@ -44,13 +52,15 @@ REGLAS ESTRICTAS:
 2. Meta description: entre 140 y 160 caracteres, incluir call-to-action implícito, mencionar atributos clave
 3. URL handle: solo minúsculas, guiones, sin caracteres especiales, descriptiva y corta
 4. Descripción: 2-3 párrafos, mencionar materiales/características, casos de uso, beneficios concretos. Optimizada para que una IA la cite en respuestas conversacionales.
+${imgs.length ? `5. Alt text de imágenes: máximo 125 caracteres por imagen, descriptivo y con la keyword principal, sin empezar con "imagen de" ni "foto de". Una entrada por cada imagen listada, con su id exacto.` : ""}
 
 Respondé ÚNICAMENTE con un JSON válido, sin texto adicional, sin bloques de código:
 {
   "seo_title": "...",
-  "seo_description": "...", 
+  "seo_description": "...",
   "handle": "...",
-  "description": "..."
+  "description": "..."${imgs.length ? `,
+  "images_alt": [${imgs.map((img) => `{ "id": "${img.id}", "alt": "..." }`).join(", ")}]` : ""}
 }`;
 }
 
@@ -89,7 +99,7 @@ export async function generateSEO(
 
     const response = await client.messages.create({
       model,
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [{ role: "user", content: prompt }],
     });
 
