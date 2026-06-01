@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import StorePage from "./pages/StorePage";
 import ProductPage from "./pages/ProductPage";
+import MetricsPage from "./pages/MetricsPage";
 
 const queryClient = new QueryClient();
 
@@ -13,6 +14,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/stores/:storeId" element={<StorePage />} />
+          <Route path="/stores/:storeId/metrics" element={<MetricsPage />} />
           <Route path="/stores/:storeId/products/:productId" element={<ProductPage />} />
         </Routes>
       </BrowserRouter>

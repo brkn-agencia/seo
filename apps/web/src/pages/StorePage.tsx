@@ -174,6 +174,7 @@ export default function StorePage() {
         <div style={styles.navBack} onClick={() => navigate("/")}>← Volver</div>
         <nav style={styles.nav}>
           <div style={{ ...styles.navItem, ...styles.navActive }}>📦 Productos</div>
+          <div style={styles.navItem} onClick={() => navigate(`/stores/${storeId}/metrics`)}>📈 Métricas</div>
         </nav>
       </div>
 

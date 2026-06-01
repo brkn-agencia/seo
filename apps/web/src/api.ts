@@ -57,6 +57,9 @@ export const getJob = (jobId: string) =>
 export const getStoreJobs = (storeId: string) =>
   api.get(`/api/stores/${storeId}/jobs`).then(r => r.data);
 
+export const getMetrics = (storeId: string) =>
+  api.get(`/api/stores/${storeId}/metrics`).then(r => r.data);
+
 // ── API KEY DE ANTHROPIC (POR CLIENTE) ────────────────────────────────────────
 export const setAnthropicKey = (storeId: string, apiKey: string) =>
   api.put(`/api/stores/${storeId}/anthropic-key`, { api_key: apiKey }).then(r => r.data);
