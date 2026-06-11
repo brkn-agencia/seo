@@ -102,3 +102,16 @@ export const color_validations = pgTable("color_validations", {
   confirmed_at:    timestamp("confirmed_at"),
   created_at:      timestamp("created_at").defaultNow(),
 });
+
+// ── PRODUCT SALES ─────────────────────────────────────────────────────────────
+// Ventas agregadas por producto (de la API de órdenes de TN). Sirve para
+// priorizar la optimización por popularidad real, no solo por severidad SEO.
+export const product_sales = pgTable("product_sales", {
+  id:              text("id").primaryKey(), // `${store_id}_${tn_product_id}`
+  store_id:        text("store_id").notNull().references(() => stores.id),
+  tn_product_id:   text("tn_product_id").notNull(),
+  units_sold:      integer("units_sold").default(0),
+  orders_count:    integer("orders_count").default(0),
+  last_order_at:   timestamp("last_order_at"),
+  updated_at:      timestamp("updated_at").defaultNow(),
+});

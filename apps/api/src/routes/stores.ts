@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { db, stores, products_cache } from "@seo/db";
 import { eq, desc, asc } from "drizzle-orm";
 import { syncStore } from "../services/sync.js";
+import { syncOrders } from "../services/orders.js";
 import { encrypt } from "../lib/tn.js";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -131,6 +132,18 @@ router.post("/api/stores/:storeId/sync", async (req: Request, res: Response) => 
     });
   } catch (err: any) {
     console.error("Sync error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── SYNC DE ÓRDENES (ventas por producto) ─────────────────────────────────────
+router.post("/api/stores/:storeId/sync-orders", async (req: Request, res: Response) => {
+  try {
+    const { storeId } = req.params;
+    const result = await syncOrders(storeId);
+    res.json({ success: true, message: "Ventas actualizadas", ...result });
+  } catch (err: any) {
+    console.error("Sync orders error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -17,6 +17,9 @@ export const getStore = (storeId: string) =>
 export const syncStore = (storeId: string) =>
   api.post(`/api/stores/${storeId}/sync`).then(r => r.data);
 
+export const syncOrders = (storeId: string) =>
+  api.post(`/api/stores/${storeId}/sync-orders`).then(r => r.data);
+
 // ── PRODUCTS ──────────────────────────────────────────────────────────────────
 export const getProducts = (storeId: string, order = "score_asc") =>
   api.get(`/api/stores/${storeId}/products`, { params: { order } }).then(r => r.data);
