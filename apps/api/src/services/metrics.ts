@@ -1,4 +1,4 @@
-import { db, products_cache, seo_versions } from "@seo/db";
+import { db, products_cache, seo_versions, product_sales } from "@seo/db";
 import { eq } from "drizzle-orm";
 
 // Estimación de trabajo manual que evita cada producto optimizado por IA
@@ -33,12 +33,16 @@ export interface StoreMetrics {
     products_optimized: number;
   };
   suggestions: { type: string; title: string; detail: string }[];
+  // true si hay datos de ventas: las alertas se rankean por popularidad real.
+  // false: ranking por severidad SEO (fallback).
+  sales_synced: boolean;
   priority_alerts: {
     id: string;
     name: string;
     handle: string | null;
     seo_score: number;
     issues: number;
+    units_sold: number;
   }[];
 }
 
@@ -57,6 +61,21 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
     .select()
     .from(seo_versions)
     .where(eq(seo_versions.store_id, storeId));
+
+  // Ventas por producto (opcional): si la tabla aún no existe (sin db:push),
+  // degradamos a ranking por severidad SEO.
+  const salesByTnId = new Map<string, number>();
+  let sales_synced = false;
+  try {
+    const sales = await db
+      .select()
+      .from(product_sales)
+      .where(eq(product_sales.store_id, storeId));
+    for (const s of sales) salesByTnId.set(s.tn_product_id, s.units_sold || 0);
+    sales_synced = sales.length > 0;
+  } catch {
+    sales_synced = false;
+  }
 
   // ── SEO ────────────────────────────────────────────────────────────────────
   const total = products.length;
@@ -106,16 +125,24 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
   // ── TIEMPO AHORRADO ──────────────────────────────────────────────────────────
   const hours = round((applied * MINUTES_PER_PRODUCT) / 60, 1);
 
-  // ── ALERTAS PRIORITARIAS (por severidad; rankear por ventas/visitas a futuro) ─
+  // ── ALERTAS PRIORITARIAS ──────────────────────────────────────────────────
+  // Con datos de ventas: prioriza los que MÁS venden y peor SEO tienen (mayor
+  // pérdida de oportunidad). Sin ventas: cae a severidad SEO (peor score primero).
   const priority_alerts = pending
-    .sort((a, b) => (a.seo_score || 0) - (b.seo_score || 0))
+    .map((p) => ({ p, units: salesByTnId.get(p.tn_product_id) || 0 }))
+    .sort((a, b) =>
+      sales_synced && b.units !== a.units
+        ? b.units - a.units
+        : (a.p.seo_score || 0) - (b.p.seo_score || 0)
+    )
     .slice(0, 10)
-    .map((p) => ({
+    .map(({ p, units }) => ({
       id: p.id,
       name: p.name,
       handle: p.handle,
       seo_score: p.seo_score || 0,
       issues: ((p.seo_issues as string[]) || []).length,
+      units_sold: units,
     }));
 
   // ── SUGERENCIAS AUTOMÁTICAS ──────────────────────────────────────────────────
@@ -145,6 +172,20 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
       title: `Optimizá lo pendiente por ~$${estimated_cost_to_finish_usd} USD`,
       detail: `Quedan ${pending.length} productos sin optimizar. Lanzá una optimización masiva para cerrarlos.`,
     });
+  }
+  // Alto valor: producto que vende y está sin optimizar (mayor pérdida).
+  if (sales_synced) {
+    const topPending = pending
+      .map((p) => ({ p, units: salesByTnId.get(p.tn_product_id) || 0 }))
+      .filter((x) => x.units > 0)
+      .sort((a, b) => b.units - a.units)[0];
+    if (topPending) {
+      suggestions.push({
+        type: "critical",
+        title: `"${topPending.p.name}" vende y está sin optimizar`,
+        detail: `${topPending.units} unidades vendidas (90 días) con score ${topPending.p.seo_score}. Optimizarlo es la mayor oportunidad de impacto.`,
+      });
+    }
   }
   if (total > 0 && optimization_pctOf(optimized, total) >= 90) {
     suggestions.push({
@@ -176,6 +217,7 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
     },
     time_saved: { hours, minutes_per_product: MINUTES_PER_PRODUCT, products_optimized: applied },
     suggestions,
+    sales_synced,
     priority_alerts,
   };
 }

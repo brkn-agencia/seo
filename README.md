@@ -35,7 +35,11 @@ sin key propia, para que cada cliente consuma sus propios créditos y nunca la k
 - `DELETE /api/stores/:storeId/anthropic-key` — quitar la key
 - `PATCH /api/stores/:storeId/settings` — configurar `automation_mode` / `preferred_model`
 - `GET  /api/stores/:storeId/metrics` — dashboard del cliente (costos IA, % optimización, horas ahorradas, alertas, recomendaciones)
+- `POST /api/stores/:storeId/sync-orders` — sincroniza ventas (90 días) para priorizar por popularidad
 - `POST /api/stores/:storeId/optimize` — lanzar optimización masiva (job en lote)
+
+> **Nota:** el ranking por ventas usa la tabla `product_sales`. Ejecutá `npm run db:push`
+> una vez para crearla. Hasta entonces, las alertas degradan a ranking por severidad SEO.
 - `GET  /api/jobs/:jobId` — progreso del job
 - `POST /api/stores/:storeId/versions/:versionId/apply` — aprobar y escribir en Tienda Nube
 - `POST /api/stores/:storeId/versions/:versionId/reject` — descartar una sugerencia

@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { getStore, getMetrics } from "../api";
+import { getStore, getMetrics, syncOrders } from "../api";
 
 function Card({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
@@ -19,9 +19,16 @@ const SUGG_COLORS: Record<string, string> = {
 export default function MetricsPage() {
   const { storeId } = useParams<{ storeId: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
   const { data: storeData } = useQuery({ queryKey: ["store", storeId], queryFn: () => getStore(storeId!) });
   const { data, isLoading } = useQuery({ queryKey: ["metrics", storeId], queryFn: () => getMetrics(storeId!) });
+
+  const refreshSales = useMutation({
+    mutationFn: () => syncOrders(storeId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["metrics", storeId] }),
+    onError: (err: any) => alert("Error al actualizar ventas: " + (err.response?.data?.error || err.message)),
+  });
 
   const store = storeData?.data;
   const m = data?.data;
@@ -40,11 +47,14 @@ export default function MetricsPage() {
       </div>
 
       <div style={s.main}>
-        <div style={s.topbar}>
+        <div style={{ ...s.topbar, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={s.pageTitle}>{store?.name || "..."} — Métricas</div>
             <div style={s.pageSub}>Impacto de la optimización SEO con IA</div>
           </div>
+          <button style={s.btnRefresh} onClick={() => refreshSales.mutate()} disabled={refreshSales.isPending}>
+            {refreshSales.isPending ? "Actualizando ventas..." : "↻ Actualizar ventas"}
+          </button>
         </div>
 
         {isLoading || !m ? (
@@ -126,7 +136,11 @@ export default function MetricsPage() {
             {/* Alertas prioritarias */}
             <div style={s.sectionTitle}>
               Productos prioritarios pendientes
-              <span style={s.note}> · ordenados por severidad SEO (ranking por ventas/visitas próximamente)</span>
+              <span style={s.note}>
+                {m.sales_synced
+                  ? " · ordenados por ventas (90 días) — los que más venden y peor SEO tienen"
+                  : " · ordenados por severidad SEO · actualizá ventas para priorizar por popularidad"}
+              </span>
             </div>
             <div style={s.table}>
               {m.priority_alerts.length === 0 && <div style={s.empty}>No hay productos pendientes 🎉</div>}
@@ -136,8 +150,11 @@ export default function MetricsPage() {
                     <div style={s.pName}>{p.name}</div>
                     <div style={s.pHandle}>{p.handle || "Sin URL"}</div>
                   </div>
+                  <div style={{ width: 90, fontSize: 12, color: "#2C2C2A" }}>
+                    {m.sales_synced ? <><b>{p.units_sold}</b> vendidos</> : "—"}
+                  </div>
                   <div style={{ width: 90, color: p.seo_score < 30 ? "#E24B4A" : "#BA7517", fontWeight: 600 }}>Score {p.seo_score}</div>
-                  <div style={{ width: 90, fontSize: 12, color: "#888" }}>{p.issues} issues</div>
+                  <div style={{ width: 80, fontSize: 12, color: "#888" }}>{p.issues} issues</div>
                   <div style={{ width: 60 }}><button style={s.btnSm}>Ver →</button></div>
                 </div>
               ))}
@@ -185,5 +202,6 @@ const s: Record<string, React.CSSProperties> = {
   pName: { fontSize: 13, fontWeight: 500, color: "#2C2C2A" },
   pHandle: { fontSize: 11, color: "#aaa", marginTop: 2 },
   btnSm: { fontSize: 12, padding: "5px 10px", background: "#EEEDFE", color: "#534AB7", border: "1px solid #AFA9EC", borderRadius: 6, cursor: "pointer" },
+  btnRefresh: { fontSize: 13, padding: "7px 14px", background: "white", color: "#444", border: "1px solid #E5E3DB", borderRadius: 6, cursor: "pointer" },
   empty: { padding: "32px 16px", textAlign: "center", fontSize: 13, color: "#888" },
 };

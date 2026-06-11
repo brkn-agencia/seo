@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { db, stores } from "@seo/db";
 import { syncStore } from "./sync.js";
+import { syncOrders } from "./orders.js";
 import { startBulkOptimization } from "./jobs.js";
 
 /**
@@ -27,6 +28,13 @@ export async function runAutomationPass(): Promise<void> {
     try {
       console.log(`⏳ [auto] Sincronizando ${store.name} (${mode})...`);
       await syncStore(store.id);
+
+      // Ventas para priorizar por popularidad (si falla la tabla, no frena el resto).
+      try {
+        await syncOrders(store.id);
+      } catch (err: any) {
+        console.error(`[auto] sync-orders ${store.name}:`, err.message);
+      }
 
       const jobId = await startBulkOptimization(store.id, {
         scoreThreshold: 70,
