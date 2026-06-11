@@ -13,5 +13,34 @@ Centro de control SEO con IA para agencias con clientes en Tienda Nube.
 - `apps/web` — Frontend React (próximamente)
 - `packages/db` — Schema y cliente de DB
 
+## Automatización SEO
+
+El flujo cierra el loop completo: **sync → score → generar (IA) → aplicar en Tienda Nube**.
+
+Cada tienda define su `automation_mode`:
+
+| Modo | Qué hace el cron diario |
+|------|--------------------------|
+| `manual` | Nada automático — solo acciones desde la UI |
+| `suggest` | Sincroniza y genera sugerencias (quedan `pending` para aprobar) |
+| `auto` | Sincroniza, genera y **aplica** los cambios directo en Tienda Nube |
+
+### Créditos de IA por cliente
+Cada tienda carga **su propia API key de Anthropic** (`PUT /api/stores/:storeId/anthropic-key`),
+que se verifica contra la API y se guarda encriptada. La automatización **saltea** las tiendas
+sin key propia, para que cada cliente consuma sus propios créditos y nunca la key global de la agencia.
+
+### Endpoints clave
+- `PUT  /api/stores/:storeId/anthropic-key` — cargar y verificar la key del cliente
+- `DELETE /api/stores/:storeId/anthropic-key` — quitar la key
+- `PATCH /api/stores/:storeId/settings` — configurar `automation_mode` / `preferred_model`
+- `GET  /api/stores/:storeId/metrics` — dashboard del cliente (costos IA, % optimización, horas ahorradas, alertas, recomendaciones)
+- `POST /api/stores/:storeId/optimize` — lanzar optimización masiva (job en lote)
+- `GET  /api/jobs/:jobId` — progreso del job
+- `POST /api/stores/:storeId/versions/:versionId/apply` — aprobar y escribir en Tienda Nube
+- `POST /api/stores/:storeId/versions/:versionId/reject` — descartar una sugerencia
+
+El scheduler corre a las 03:00 (configurable con `AUTOMATION_CRON`).
+
 ## Variables de entorno
 Copiá `.env.example` a `.env` y completá los valores.

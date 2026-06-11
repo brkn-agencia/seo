@@ -3,6 +3,9 @@ import cors from "cors";
 import authRouter from "./routes/auth.js";
 import storesRouter from "./routes/stores.js";
 import seoRouter from "./routes/seo.js";
+import jobsRouter from "./routes/jobs.js";
+import metricsRouter from "./routes/metrics.js";
+import { startScheduler } from "./services/scheduler.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,6 +36,8 @@ app.get("/health", (req, res) => {
 app.use("/", authRouter);
 app.use("/", storesRouter);
 app.use("/", seoRouter);
+app.use("/", jobsRouter);
+app.use("/", metricsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });
@@ -42,6 +47,7 @@ app.listen(PORT, () => {
   console.log(`🚀 SEO Agency API corriendo en puerto ${PORT}`);
   console.log(`   Health:  https://seo.bruda.io/health`);
   console.log(`   Stores:  https://seo.bruda.io/api/stores`);
+  startScheduler();
 });
 
 export default app;
