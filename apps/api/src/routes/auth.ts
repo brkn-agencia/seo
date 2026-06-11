@@ -85,12 +85,10 @@ router.get("/auth/callback", async (req: Request, res: Response) => {
         },
       });
 
-    res.json({
-      success: true,
-      store_id: storeId,
-      store_name: storeData.name?.es || storeData.name,
-      message: "✅ Tienda conectada correctamente",
-    });
+    // Redirige al panel (frontend) con la tienda ya conectada, en vez de
+    // dejar al usuario en un JSON crudo. Configurable con WEB_URL.
+    const webUrl = process.env.WEB_URL || "https://seo-web-13yk.onrender.com";
+    res.redirect(`${webUrl}/stores/${storeId}?connected=1`);
   } catch (err: any) {
     console.error("OAuth error:", err.response?.data || err.message);
     res.status(500).json({
