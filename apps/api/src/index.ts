@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
 import authRouter from "./routes/auth.js";
 import storesRouter from "./routes/stores.js";
 import seoRouter from "./routes/seo.js";
@@ -39,8 +40,17 @@ app.use("/", seoRouter);
 app.use("/", jobsRouter);
 app.use("/", metricsRouter);
 
+// ── PANEL (frontend compilado) servido desde el mismo servicio ────────────────
+const webDist = path.join(process.cwd(), "apps/web/dist");
+app.use(express.static(webDist));
+
+// Rutas de API/auth desconocidas → 404 JSON. Cualquier otra → index.html (SPA).
 app.use((req, res) => {
-  res.status(404).json({ error: "Ruta no encontrada" });
+  if (req.path.startsWith("/api") || req.path.startsWith("/auth") || req.path === "/health") {
+    res.status(404).json({ error: "Ruta no encontrada" });
+    return;
+  }
+  res.sendFile(path.join(webDist, "index.html"));
 });
 
 app.listen(PORT, () => {

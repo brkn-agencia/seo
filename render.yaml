@@ -1,9 +1,10 @@
 services:
+  # Servicio único: la API de Express sirve también el panel (frontend compilado).
   - type: web
     name: seo-api
     runtime: node
     plan: starter
-    buildCommand: npm install && npm run build:api
+    buildCommand: npm install && npm run build
     startCommand: node apps/api/dist/index.js
     envVars:
       - key: NODE_ENV
@@ -20,12 +21,3 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-
-  - type: static
-    name: seo-web
-    buildCommand: npm install && npm run build --workspace=apps/web
-    staticPublishPath: apps/web/dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
