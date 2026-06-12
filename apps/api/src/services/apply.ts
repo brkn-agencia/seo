@@ -18,6 +18,7 @@ export interface ApplyPlan {
  */
 export function buildApplyPlan(after: Record<string, any>): ApplyPlan {
   const productPayload: Record<string, any> = {};
+  if (after.product_name) productPayload.name = tnLocalized(after.product_name);
   if (after.seo_title) productPayload.seo_title = tnLocalized(after.seo_title);
   if (after.seo_description) productPayload.seo_description = tnLocalized(after.seo_description);
   if (after.handle) productPayload.handle = tnLocalized(after.handle);
