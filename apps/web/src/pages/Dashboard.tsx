@@ -1,6 +1,94 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { getStores, syncStore } from "../api";
+import { useState } from "react";
+import {
+  getStores, syncStore, getMe, getUsers, createUser, resetUserPassword, deleteUser, clearToken,
+} from "../api";
+
+function UsersPanel({ stores }: { stores: any[] }) {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["users"], queryFn: getUsers });
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [storeId, setStoreId] = useState("");
+  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+
+  const create = useMutation({
+    mutationFn: () => createUser(email.trim(), name.trim(), storeId),
+    onSuccess: (res: any) => {
+      setCreated({ email: res.user.email, password: res.password });
+      setEmail(""); setName(""); setStoreId("");
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err: any) => alert("Error: " + (err.response?.data?.error || err.message)),
+  });
+  const reset = useMutation({
+    mutationFn: (id: string) => resetUserPassword(id),
+    onSuccess: (res: any) => setCreated({ email: "(contraseña nueva)", password: res.password }),
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => deleteUser(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+  });
+
+  const clients = (data?.data || []).filter((u: any) => u.role === "client");
+  const storeName = (id: string) => stores.find((s) => s.id === id)?.name || id;
+
+  return (
+    <div style={up.wrap}>
+      <div style={up.title}>Accesos de clientes</div>
+
+      <div style={up.form}>
+        <input style={up.input} placeholder="Email del cliente" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input style={up.input} placeholder="Nombre (opcional)" value={name} onChange={(e) => setName(e.target.value)} />
+        <select style={up.input} value={storeId} onChange={(e) => setStoreId(e.target.value)}>
+          <option value="">Asignar tienda...</option>
+          {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <button style={up.btn} onClick={() => create.mutate()} disabled={create.isPending || !email || !storeId}>
+          {create.isPending ? "Creando..." : "Crear acceso"}
+        </button>
+      </div>
+
+      {created && (
+        <div style={up.created}>
+          ✅ Acceso para <b>{created.email}</b> — contraseña: <code style={up.code}>{created.password}</code>
+          <span style={{ color: "#888", marginLeft: 8 }}>(guardala y pasásela al cliente; no se vuelve a mostrar)</span>
+        </div>
+      )}
+
+      <div style={up.list}>
+        {clients.length === 0 && <div style={{ fontSize: 12, color: "#888", padding: "8px 0" }}>Sin clientes todavía.</div>}
+        {clients.map((u: any) => (
+          <div key={u.id} style={up.row}>
+            <div style={{ flex: 2 }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{u.email}</div>
+              <div style={{ fontSize: 11, color: "#888" }}>{u.name || "—"}</div>
+            </div>
+            <div style={{ flex: 2, fontSize: 12, color: "#666" }}>
+              {u.store_ids?.length ? u.store_ids.map(storeName).join(", ") : "Sin tienda"}
+            </div>
+            <button style={up.linkBtn} onClick={() => reset.mutate(u.id)}>Resetear contraseña</button>
+            <button style={{ ...up.linkBtn, color: "#A32D2D" }} onClick={() => { if (confirm("¿Eliminar este acceso?")) del.mutate(u.id); }}>Eliminar</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const up: Record<string, React.CSSProperties> = {
+  wrap: { background: "white", border: "1px solid #E5E3DB", borderRadius: 8, padding: "16px", margin: "0 24px 24px" },
+  title: { fontSize: 12, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 },
+  form: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" },
+  input: { flex: 1, minWidth: 140, fontSize: 13, padding: "7px 10px", border: "1px solid #E5E3DB", borderRadius: 6, background: "white" },
+  btn: { fontSize: 13, padding: "7px 14px", background: "#534AB7", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 },
+  created: { fontSize: 13, color: "#0F6E56", background: "#E1F5EE", border: "1px solid #9FE1CB", borderRadius: 6, padding: "10px 12px", marginBottom: 10 },
+  code: { background: "white", padding: "2px 8px", borderRadius: 4, fontFamily: "monospace", fontWeight: 600 },
+  list: { display: "flex", flexDirection: "column" },
+  row: { display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "1px solid #F1EFE8" },
+  linkBtn: { fontSize: 12, padding: "5px 8px", background: "white", color: "#534AB7", border: "1px solid #E5E3DB", borderRadius: 6, cursor: "pointer" },
+};
 
 function ScoreBar({ score }: { score: number }) {
   const color = score >= 70 ? "#1D9E75" : score >= 40 ? "#BA7517" : "#E24B4A";
@@ -18,6 +106,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["stores"], queryFn: getStores });
+  const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const isAdmin = me?.role === "admin";
+  const logout = () => { clearToken(); navigate("/login"); };
 
   const sync = useMutation({
     mutationFn: (storeId: string) => syncStore(storeId),
@@ -45,10 +136,16 @@ export default function Dashboard() {
         </div>
         <nav style={styles.nav}>
           <div style={{ ...styles.navItem, ...styles.navActive }}>📊 Resumen</div>
-          <div style={styles.navItem} onClick={() => window.open("https://seo.bruda.io/auth/install", "_blank")}>
-            ➕ Conectar tienda
-          </div>
+          {isAdmin && (
+            <div style={styles.navItem} onClick={() => window.open("https://seo.bruda.io/auth/install", "_blank")}>
+              ➕ Conectar tienda
+            </div>
+          )}
         </nav>
+        <div style={{ marginTop: "auto", padding: "0 8px" }}>
+          <div style={{ fontSize: 11, color: "#888", padding: "8px 12px" }}>{me?.email}</div>
+          <div style={styles.navItem} onClick={logout}>↩ Cerrar sesión</div>
+        </div>
       </div>
 
       <div style={styles.main}>
@@ -57,12 +154,14 @@ export default function Dashboard() {
             <div style={styles.pageTitle}>Resumen general</div>
             <div style={styles.pageSub}>{stores.length} tiendas conectadas</div>
           </div>
-          <button
-            style={styles.btnPrimary}
-            onClick={() => window.open("https://seo.bruda.io/auth/install", "_blank")}
-          >
-            + Agregar tienda
-          </button>
+          {isAdmin && (
+            <button
+              style={styles.btnPrimary}
+              onClick={() => window.open("https://seo.bruda.io/auth/install", "_blank")}
+            >
+              + Agregar tienda
+            </button>
+          )}
         </div>
 
         <div style={styles.metrics}>
@@ -141,6 +240,8 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+
+        {isAdmin && <UsersPanel stores={stores} />}
       </div>
     </div>
   );

@@ -20,6 +20,20 @@ export type { InferSelectModel, InferInsertModel } from "drizzle-orm";
  */
 export async function runMigrations(): Promise<void> {
   const statements = [
+    `CREATE TABLE IF NOT EXISTS users (
+      id            text PRIMARY KEY,
+      email         text NOT NULL UNIQUE,
+      password_hash text NOT NULL,
+      role          text NOT NULL DEFAULT 'client',
+      name          text,
+      created_at    timestamp DEFAULT now()
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_stores (
+      id         text PRIMARY KEY,
+      user_id    text NOT NULL,
+      store_id   text NOT NULL,
+      created_at timestamp DEFAULT now()
+    )`,
     `CREATE TABLE IF NOT EXISTS product_sales (
       id            text PRIMARY KEY,
       store_id      text NOT NULL,

@@ -1,5 +1,23 @@
 import { pgTable, text, integer, boolean, timestamp, jsonb, real } from "drizzle-orm/pg-core";
 
+// ── USERS ─────────────────────────────────────────────────────────────────────
+export const users = pgTable("users", {
+  id:            text("id").primaryKey(),
+  email:         text("email").notNull().unique(),
+  password_hash: text("password_hash").notNull(),
+  role:          text("role").notNull().default("client"), // admin | client
+  name:          text("name"),
+  created_at:    timestamp("created_at").defaultNow(),
+});
+
+// Relación usuario ↔ tienda (un cliente ve solo sus tiendas asignadas).
+export const user_stores = pgTable("user_stores", {
+  id:         text("id").primaryKey(),
+  user_id:    text("user_id").notNull().references(() => users.id),
+  store_id:   text("store_id").notNull().references(() => stores.id),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
 // ── STORES ────────────────────────────────────────────────────────────────────
 export const stores = pgTable("stores", {
   id:                      text("id").primaryKey(),

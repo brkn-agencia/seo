@@ -4,6 +4,7 @@ import { eq, desc, asc } from "drizzle-orm";
 import { syncStore } from "../services/sync.js";
 import { syncOrders } from "../services/orders.js";
 import { encrypt, tnClient, tnLocalized } from "../lib/tn.js";
+import { storeIdsForUser, type AuthedRequest } from "../lib/auth.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 const router = Router();
@@ -19,11 +20,13 @@ function publicStore(store: any) {
   };
 }
 
-// ── LISTAR TIENDAS ────────────────────────────────────────────────────────────
-router.get("/api/stores", async (req: Request, res: Response) => {
+// ── LISTAR TIENDAS (scope por usuario) ────────────────────────────────────────
+router.get("/api/stores", async (req: AuthedRequest, res: Response) => {
   try {
     const result = await db.select().from(stores).orderBy(asc(stores.created_at));
-    res.json({ data: result.map(publicStore), total: result.length });
+    const allowed = req.user ? await storeIdsForUser(req.user) : "all";
+    const scoped = allowed === "all" ? result : result.filter((s) => allowed.includes(s.id));
+    res.json({ data: scoped.map(publicStore), total: scoped.length });
   } catch (err) {
     res.status(500).json({ error: "Error al obtener tiendas" });
   }
