@@ -21,8 +21,11 @@ export const syncOrders = (storeId: string) =>
   api.post(`/api/stores/${storeId}/sync-orders`).then(r => r.data);
 
 // ── PRODUCTS ──────────────────────────────────────────────────────────────────
-export const getProducts = (storeId: string, order = "score_asc") =>
-  api.get(`/api/stores/${storeId}/products`, { params: { order } }).then(r => r.data);
+export const getProducts = (
+  storeId: string,
+  params: { order?: string; status?: string; category?: string } = {}
+) =>
+  api.get(`/api/stores/${storeId}/products`, { params: { order: "score_asc", ...params } }).then(r => r.data);
 
 export const getProduct = (storeId: string, productId: string) =>
   api.get(`/api/stores/${storeId}/products/${productId}`).then(r => r.data);

@@ -82,10 +82,15 @@ export async function generateSEO(
     });
     if (!store) return { success: false, error: "Tienda no encontrada" };
 
+    // Cada tienda usa SU propia key de Anthropic — sin fallback a la global,
+    // así nunca se gastan los créditos de la agencia por una tienda.
     const claudeApiKey = apiKey ||
-      (store.anthropic_api_key_enc ? decrypt(store.anthropic_api_key_enc) : process.env.ANTHROPIC_API_KEY);
+      (store.anthropic_api_key_enc ? decrypt(store.anthropic_api_key_enc) : null);
 
-    if (!claudeApiKey) return { success: false, error: "No hay API key de Claude configurada" };
+    if (!claudeApiKey) return {
+      success: false,
+      error: "Esta tienda no tiene API key de Anthropic cargada. Cargala en la configuración de la tienda antes de generar.",
+    };
 
     // Obtener brand profile si existe
     const brandProfile = await db.query.brand_profiles.findFirst({

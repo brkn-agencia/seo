@@ -66,7 +66,7 @@ export default function MetricsPage() {
               <Card
                 label="Optimización del sitio"
                 value={`${m.seo.optimization_pct}%`}
-                sub={`${m.seo.optimized} de ${m.seo.total} productos óptimos`}
+                sub={`${m.seo.optimized} de ${m.seo.total} operativos${m.seo.excluded ? ` · ${m.seo.excluded} excluidos (ocultos/sin stock)` : ""}`}
                 color={m.seo.optimization_pct >= 70 ? "#1D9E75" : m.seo.optimization_pct >= 40 ? "#BA7517" : "#E24B4A"}
               />
               <Card
