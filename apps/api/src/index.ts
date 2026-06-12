@@ -1,13 +1,17 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import crypto from "crypto";
 import authRouter from "./routes/auth.js";
 import storesRouter from "./routes/stores.js";
 import seoRouter from "./routes/seo.js";
 import jobsRouter from "./routes/jobs.js";
 import metricsRouter from "./routes/metrics.js";
+import usersRouter from "./routes/users.js";
 import { startScheduler } from "./services/scheduler.js";
-import { runMigrations } from "@seo/db";
+import { runMigrations, db, users } from "@seo/db";
+import { eq } from "drizzle-orm";
+import { verifyToken, userCanAccessStore, hashPassword, type AuthedRequest } from "./lib/auth.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,25 +29,32 @@ app.use(cors({
 
 app.use(express.json());
 
-// ── PROTECCIÓN DE AGENCIA (Basic Auth) ────────────────────────────────────────
-// Una sola contraseña protege panel + API. Se excluyen los endpoints de OAuth
-// (vienen redirigidos desde Tienda Nube) y el health check. Si no se configura
-// AGENCY_PASSWORD, no bloquea nada (para no dejarte afuera antes de setearla).
-const AGENCY_PASSWORD = process.env.AGENCY_PASSWORD;
-const OPEN_PATHS = ["/health", "/auth/install", "/auth/callback"];
+// ── AUTENTICACIÓN POR TOKEN ───────────────────────────────────────────────────
+// El panel (HTML/JS), el OAuth de TN, el health y el login quedan públicos.
+// Todo lo demás bajo /api requiere un token válido (login por usuario).
+function isPublic(p: string): boolean {
+  if (p === "/health" || p === "/auth/install" || p === "/auth/callback" || p === "/api/auth/login") return true;
+  // estáticos del panel y rutas del SPA: públicos (el SPA pide login por su cuenta)
+  if (!p.startsWith("/api") && !p.startsWith("/auth/stores")) return true;
+  return false;
+}
 
-app.use((req, res, next) => {
-  if (!AGENCY_PASSWORD || OPEN_PATHS.includes(req.path)) return next();
+app.use((req: AuthedRequest, res, next) => {
+  if (isPublic(req.path)) return next();
+  const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  const user = verifyToken(token);
+  if (!user) { res.status(401).json({ error: "No autorizado" }); return; }
+  req.user = user;
+  next();
+});
 
-  const [scheme, encoded] = (req.headers.authorization || "").split(" ");
-  if (scheme === "Basic" && encoded) {
-    const decoded = Buffer.from(encoded, "base64").toString();
-    const pass = decoded.slice(decoded.indexOf(":") + 1);
-    if (pass === AGENCY_PASSWORD) return next();
-  }
-
-  res.set("WWW-Authenticate", 'Basic realm="Bruda SEO"');
-  res.status(401).send("Autenticación requerida");
+// Control de acceso por tienda: un cliente solo accede a sus tiendas.
+app.use(async (req: AuthedRequest, res, next) => {
+  const m = req.path.match(/^\/api\/stores\/([^/]+)/);
+  if (!m || !req.user) return next();
+  const storeId = decodeURIComponent(m[1]);
+  if (await userCanAccessStore(req.user, storeId)) return next();
+  res.status(403).json({ error: "No tenés acceso a esta tienda" });
 });
 
 app.get("/health", (req, res) => {
@@ -56,6 +67,7 @@ app.get("/health", (req, res) => {
   });
 });
 
+app.use("/", usersRouter);
 app.use("/", authRouter);
 app.use("/", storesRouter);
 app.use("/", seoRouter);
@@ -80,7 +92,28 @@ app.listen(PORT, async () => {
   console.log(`   Health:  https://seo.bruda.io/health`);
   console.log(`   Stores:  https://seo.bruda.io/api/stores`);
   await runMigrations();
+  await seedAdmin();
   startScheduler();
 });
+
+// Crea el admin inicial si no existe. Usa ADMIN_EMAIL + (ADMIN_PASSWORD o AGENCY_PASSWORD).
+async function seedAdmin(): Promise<void> {
+  const email = (process.env.ADMIN_EMAIL || "admin@bruda.io").toLowerCase();
+  const password = process.env.ADMIN_PASSWORD || process.env.AGENCY_PASSWORD;
+  try {
+    const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
+    if (existing) return;
+    if (!password) {
+      console.log("⚠️  No hay admin y falta ADMIN_PASSWORD/AGENCY_PASSWORD — no se creó el admin.");
+      return;
+    }
+    await db.insert(users).values({
+      id: crypto.randomUUID(), email, password_hash: hashPassword(password), role: "admin", name: "Agencia",
+    });
+    console.log(`✅ Admin creado: ${email}`);
+  } catch (err: any) {
+    console.error("seedAdmin:", err.message);
+  }
+}
 
 export default app;

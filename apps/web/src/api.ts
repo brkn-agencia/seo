@@ -7,6 +7,42 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// ── AUTH (token) ──────────────────────────────────────────────────────────────
+export const getToken = () => localStorage.getItem("token");
+export const setToken = (t: string) => localStorage.setItem("token", t);
+export const clearToken = () => localStorage.removeItem("token");
+
+api.interceptors.request.use((config) => {
+  const t = getToken();
+  if (t) config.headers.Authorization = `Bearer ${t}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response?.status === 401 && !location.pathname.startsWith("/login")) {
+      clearToken();
+      location.href = "/login";
+    }
+    return Promise.reject(err);
+  }
+);
+
+export const login = (email: string, password: string) =>
+  api.post("/api/auth/login", { email, password }).then(r => r.data);
+
+export const getMe = () => api.get("/api/auth/me").then(r => r.data);
+
+// ── ADMIN: usuarios ───────────────────────────────────────────────────────────
+export const getUsers = () => api.get("/api/admin/users").then(r => r.data);
+export const createUser = (email: string, name: string, store_id: string) =>
+  api.post("/api/admin/users", { email, name, store_id }).then(r => r.data);
+export const resetUserPassword = (id: string) =>
+  api.post(`/api/admin/users/${id}/reset-password`).then(r => r.data);
+export const deleteUser = (id: string) =>
+  api.delete(`/api/admin/users/${id}`).then(r => r.data);
+
 // ── STORES ────────────────────────────────────────────────────────────────────
 export const getStores = () =>
   api.get("/api/stores").then(r => r.data);
