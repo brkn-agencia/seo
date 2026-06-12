@@ -2,6 +2,7 @@ import axios from "axios";
 import { db, stores, products_cache, product_ops } from "@seo/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { analyzeFicha } from "../lib/ficha.js";
 
 // Estado operativo del producto: visible en la web, stock y categorías.
 function opsOf(p: any): { published: boolean; stock: number | null; categories: string[] } {
@@ -130,12 +131,17 @@ export async function syncStore(storeId: string): Promise<{ synced: number; erro
         // Estado operativo (tabla separada; si no existe aún, no frena el sync).
         try {
           const ops = opsOf(p);
+          const ficha = analyzeFicha(p);
           await db.insert(product_ops).values({
             id: productId, store_id: storeId, tn_product_id: String(p.id),
-            published: ops.published, stock: ops.stock, categories: ops.categories, updated_at: new Date(),
+            published: ops.published, stock: ops.stock, categories: ops.categories,
+            ficha_score: ficha.ficha_score, ficha_missing: ficha.ficha_missing, updated_at: new Date(),
           }).onConflictDoUpdate({
             target: product_ops.id,
-            set: { published: ops.published, stock: ops.stock, categories: ops.categories, updated_at: new Date() },
+            set: {
+              published: ops.published, stock: ops.stock, categories: ops.categories,
+              ficha_score: ficha.ficha_score, ficha_missing: ficha.ficha_missing, updated_at: new Date(),
+            },
           });
         } catch (e: any) { /* product_ops sin migrar: se ignora */ }
 

@@ -22,6 +22,8 @@ export function buildApplyPlan(after: Record<string, any>): ApplyPlan {
   if (after.seo_description) productPayload.seo_description = tnLocalized(after.seo_description);
   if (after.handle) productPayload.handle = tnLocalized(after.handle);
   if (after.description) productPayload.description = tnLocalized(after.description);
+  // Marca sugerida por el mejorador de ficha (campo plano en TN).
+  if (after.ficha?.brand) productPayload.brand = after.ficha.brand;
 
   const imageUpdates = Array.isArray(after.images_alt)
     ? after.images_alt

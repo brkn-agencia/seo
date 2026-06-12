@@ -213,6 +213,28 @@ export default function ProductPage() {
               </>
             )}
 
+            {after.ficha && Object.values(after.ficha).some((v) => v) && (
+              <>
+                <div style={styles.sectionTitle}>Mejoras de ficha sugeridas por IA</div>
+                <div style={styles.colorsWrap}>
+                  {([
+                    ["brand", "Marca"], ["category", "Categoría"], ["material", "Material"],
+                    ["measures", "Medidas / talles"], ["care", "Cuidado"],
+                  ] as const).map(([key, label]) =>
+                    after.ficha[key] ? (
+                      <div key={key} style={styles.colorRow}>
+                        <div style={{ width: 110, fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase" as const }}>{label}</div>
+                        <div style={{ flex: 1, fontSize: 13, color: "#2C2C2A" }}>{after.ficha[key]}</div>
+                        {key === "brand"
+                          ? <span style={{ ...styles.pill, background: "#E1F5EE", color: "#0F6E56" }}>se aplica en la tienda</span>
+                          : <span style={{ ...styles.pill, background: "#FAEEDA", color: "#854F0B" }}>sugerencia</span>}
+                      </div>
+                    ) : null
+                  )}
+                </div>
+              </>
+            )}
+
             {after.composition && (
               <div style={styles.compositionBox}>
                 <span style={{fontSize:11,fontWeight:600,color:"#888",textTransform:"uppercase" as const,letterSpacing:"0.04em"}}>Composición detectada</span>

@@ -180,11 +180,12 @@ router.get("/api/stores/:storeId/products", async (req: Request, res: Response) 
       .orderBy(orderBy);
 
     // Estado operativo (tabla separada; si no existe aún, degrada sin filtros).
-    const opsMap = new Map<string, { published: boolean; stock: number | null; categories: string[] }>();
+    const opsMap = new Map<string, { published: boolean; stock: number | null; categories: string[]; ficha_score: number; ficha_missing: string[] }>();
     try {
       const ops = await db.select().from(product_ops).where(eq(product_ops.store_id, storeId));
       for (const o of ops) opsMap.set(o.tn_product_id, {
         published: o.published ?? true, stock: o.stock, categories: (o.categories as string[]) || [],
+        ficha_score: o.ficha_score ?? 0, ficha_missing: (o.ficha_missing as string[]) || [],
       });
     } catch { /* product_ops sin migrar */ }
 
@@ -193,7 +194,10 @@ router.get("/api/stores/:storeId/products", async (req: Request, res: Response) 
       const stock = o ? o.stock : null;
       const published = o ? o.published : true;
       const operative = published && (stock === null || (stock ?? 0) > 0);
-      return { ...p, published, stock, categories: o?.categories || [], operative };
+      return {
+        ...p, published, stock, categories: o?.categories || [], operative,
+        ficha_score: o?.ficha_score ?? null, ficha_missing: o?.ficha_missing || [],
+      };
     });
 
     // Categorías disponibles para el selector de filtros.
