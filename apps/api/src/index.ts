@@ -24,6 +24,27 @@ app.use(cors({
 
 app.use(express.json());
 
+// ── PROTECCIÓN DE AGENCIA (Basic Auth) ────────────────────────────────────────
+// Una sola contraseña protege panel + API. Se excluyen los endpoints de OAuth
+// (vienen redirigidos desde Tienda Nube) y el health check. Si no se configura
+// AGENCY_PASSWORD, no bloquea nada (para no dejarte afuera antes de setearla).
+const AGENCY_PASSWORD = process.env.AGENCY_PASSWORD;
+const OPEN_PATHS = ["/health", "/auth/install", "/auth/callback"];
+
+app.use((req, res, next) => {
+  if (!AGENCY_PASSWORD || OPEN_PATHS.includes(req.path)) return next();
+
+  const [scheme, encoded] = (req.headers.authorization || "").split(" ");
+  if (scheme === "Basic" && encoded) {
+    const decoded = Buffer.from(encoded, "base64").toString();
+    const pass = decoded.slice(decoded.indexOf(":") + 1);
+    if (pass === AGENCY_PASSWORD) return next();
+  }
+
+  res.set("WWW-Authenticate", 'Basic realm="Bruda SEO"');
+  res.status(401).send("Autenticación requerida");
+});
+
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
