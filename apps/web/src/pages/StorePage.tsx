@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   getStore, getProducts, syncStore,
   setAnthropicKey, deleteAnthropicKey, updateStoreSettings, optimizeStore,
@@ -146,12 +146,20 @@ export default function StorePage() {
     queryFn: () => getStore(storeId!),
   });
 
-  const [status, setStatus] = useState("operative");
+  const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [visibility, setVisibility] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
   const [category, setCategory] = useState("");
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
   const { data: productsData, isLoading } = useQuery({
-    queryKey: ["products", storeId, status, category],
-    queryFn: () => getProducts(storeId!, { status, category }),
+    queryKey: ["products", storeId, debouncedQ, visibility, stockFilter, category],
+    queryFn: () => getProducts(storeId!, { q: debouncedQ, visibility, stock: stockFilter, category }),
   });
 
   const sync = useMutation({
@@ -222,59 +230,87 @@ export default function StorePage() {
         <SettingsPanel storeId={storeId!} store={store} />
 
         <div style={styles.section}>
-          <div style={styles.filterBar}>
-            <div style={styles.sectionTitle}>
-              Productos
-              <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, color: "#aaa", marginLeft: 8 }}>
-                {productsData?.total ?? 0} de {productsData?.total_catalog ?? 0} en catálogo
-              </span>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} style={styles.filterSelect}>
-                <option value="operative">Operativos (en la web)</option>
-                <option value="all">Todos</option>
-                <option value="hidden">Ocultos</option>
-                <option value="no_stock">Sin stock</option>
-              </select>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} style={styles.filterSelect}>
-                <option value="">Todas las categorías</option>
-                {(productsData?.categories || []).map((c: string) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
+          <div style={styles.sectionTitle}>
+            Productos
+            <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, color: "#aaa", marginLeft: 8 }}>
+              {productsData?.total ?? 0} resultados · {productsData?.total_catalog ?? 0} en catálogo
+            </span>
           </div>
+
+          {productsData && productsData.ops_synced === false && (
+            <div style={styles.opsBanner}>
+              ⚠️ Visibilidad y categorías todavía no sincronizadas. Corré <code>npm run db:push</code> y volvé a <b>Sincronizar</b> para activar los filtros de visible/oculto y categorías.
+            </div>
+          )}
+
+          <div style={styles.filterRow}>
+            <input
+              placeholder="🔍 Buscar producto por nombre..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={styles.searchInput}
+            />
+            <select value={visibility} onChange={(e) => setVisibility(e.target.value)} style={styles.filterSelect}>
+              <option value="all">Visibilidad: todas</option>
+              <option value="visible">Visibles</option>
+              <option value="hidden">Ocultos</option>
+            </select>
+            <select value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} style={styles.filterSelect}>
+              <option value="all">Stock: todos</option>
+              <option value="in">Con stock</option>
+              <option value="out">Sin stock</option>
+            </select>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} style={styles.filterSelect}>
+              <option value="">Todas las categorías</option>
+              {(productsData?.categories || []).map((c: string) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
           <div style={styles.table}>
             <div style={styles.tableHeader}>
               <span style={{ flex: 3 }}>Producto</span>
+              <span style={{ width: 90 }}>Estado</span>
+              <span style={{ width: 80 }}>Stock</span>
               <span style={{ flex: 1 }}>Score SEO</span>
-              <span style={{ flex: 1 }}>Issues</span>
-              <span style={{ width: 80 }}></span>
+              <span style={{ width: 90 }}>Issues</span>
+              <span style={{ width: 70 }}></span>
             </div>
             {isLoading && <div style={styles.empty}>Cargando productos...</div>}
+            {!isLoading && products.length === 0 && <div style={styles.empty}>Sin resultados para este filtro.</div>}
             {products.map((p: any) => (
               <div
                 key={p.id}
                 style={styles.tableRow}
                 onClick={() => navigate(`/stores/${storeId}/products/${encodeURIComponent(p.id)}`)}
               >
-                <div style={{ flex: 3 }}>
-                  <div style={styles.productName}>
-                    {p.name}
-                    {p.published === false && <span style={styles.badgeHidden}>oculto</span>}
-                    {p.stock !== null && p.stock !== undefined && p.stock <= 0 && <span style={styles.badgeNoStock}>sin stock</span>}
-                  </div>
+                <div style={{ flex: 3, minWidth: 0 }}>
+                  <div style={styles.productName}>{p.name}</div>
                   <div style={styles.productHandle}>
-                    {p.categories?.length ? p.categories.join(" · ") : (p.handle || "Sin categoría")}
+                    {p.brand ? `Marca: ${p.brand}` : "Sin marca"}
+                    {p.categories?.length ? ` · ${p.categories.join(" · ")}` : ""}
                   </div>
+                </div>
+                <div style={{ width: 90 }}>
+                  {p.published === false
+                    ? <span style={styles.badgeHidden}>Oculto</span>
+                    : <span style={styles.badgeVisible}>Visible</span>}
+                </div>
+                <div style={{ width: 80 }}>
+                  {p.stock === null
+                    ? <span style={styles.stockInfinite}>∞</span>
+                    : p.stock > 0
+                    ? <span style={styles.stockOk}>{p.stock}</span>
+                    : <span style={styles.badgeNoStock}>0</span>}
                 </div>
                 <div style={{ flex: 1 }}>
                   <ScoreBar score={p.seo_score || 0} />
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ width: 90 }}>
                   <IssuePill count={(p.seo_issues as string[])?.length || 0} />
                 </div>
-                <div style={{ width: 80 }}>
+                <div style={{ width: 70 }}>
                   <button style={styles.btnSm}>Ver →</button>
                 </div>
               </div>
@@ -311,12 +347,17 @@ const styles: Record<string, React.CSSProperties> = {
   table: { background: "white", border: "1px solid #E5E3DB", borderRadius: 8, overflow: "hidden" },
   tableHeader: { display: "flex", alignItems: "center", padding: "8px 16px", background: "#F8F7F4", fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #E5E3DB" },
   tableRow: { display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid #F1EFE8", cursor: "pointer", transition: "background 0.1s" },
-  productName: { fontSize: 13, fontWeight: 500, color: "#2C2C2A", display: "flex", alignItems: "center", gap: 6 },
-  productHandle: { fontSize: 11, color: "#aaa", marginTop: 2 },
-  filterBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  filterSelect: { fontSize: 12, padding: "5px 8px", border: "1px solid #E5E3DB", borderRadius: 6, background: "white", color: "#444" },
-  badgeHidden: { fontSize: 10, padding: "1px 6px", borderRadius: 10, background: "#F1EFE8", color: "#888", fontWeight: 500 },
-  badgeNoStock: { fontSize: 10, padding: "1px 6px", borderRadius: 10, background: "#FCEBEB", color: "#A32D2D", fontWeight: 500 },
+  productName: { fontSize: 13, fontWeight: 500, color: "#2C2C2A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  productHandle: { fontSize: 11, color: "#aaa", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  filterRow: { display: "flex", gap: 8, marginBottom: 12 },
+  searchInput: { flex: 1, fontSize: 13, padding: "7px 12px", border: "1px solid #E5E3DB", borderRadius: 6, background: "white" },
+  filterSelect: { fontSize: 12, padding: "6px 8px", border: "1px solid #E5E3DB", borderRadius: 6, background: "white", color: "#444" },
+  opsBanner: { fontSize: 12, color: "#854F0B", background: "#FAEEDA", border: "1px solid #FAC775", borderRadius: 6, padding: "8px 12px", marginBottom: 10 },
+  badgeVisible: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "#E1F5EE", color: "#0F6E56", fontWeight: 500 },
+  badgeHidden: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "#F1EFE8", color: "#888", fontWeight: 500 },
+  badgeNoStock: { fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "#FCEBEB", color: "#A32D2D", fontWeight: 600 },
+  stockOk: { fontSize: 13, fontWeight: 600, color: "#2C2C2A" },
+  stockInfinite: { fontSize: 14, color: "#888" },
   empty: { padding: "32px 16px", textAlign: "center", fontSize: 13, color: "#888" },
   btn: { fontSize: 13, padding: "7px 14px", background: "white", color: "#444", border: "1px solid #E5E3DB", borderRadius: 6, cursor: "pointer" },
   btnSm: { fontSize: 12, padding: "5px 10px", background: "#EEEDFE", color: "#534AB7", border: "1px solid #AFA9EC", borderRadius: 6, cursor: "pointer" },

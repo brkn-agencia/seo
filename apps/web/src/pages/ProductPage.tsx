@@ -98,6 +98,12 @@ export default function ProductPage() {
   const versionId = latest?.version_id || latest?.id;
   const isApplied = latest?.status === "applied";
 
+  // Variantes/talles actuales del producto (para mostrar la ficha real).
+  const localize = (v: any) => typeof v === "string" ? v : (v?.es || v?.en || Object.values(v || {})[0] || "");
+  const fichaVariants = [...new Set(
+    (product?.variants || []).flatMap((vr: any) => (vr.values || []).map(localize)).filter(Boolean)
+  )].join(", ");
+
   const apply = useMutation({
     mutationFn: () => applyVersion(storeId!, versionId),
     onSuccess: () => {
@@ -177,6 +183,25 @@ export default function ProductPage() {
 
         {!generate.isPending && (
           <div style={styles.fieldsWrap}>
+
+            <div style={styles.sectionTitle}>Datos actuales de la ficha</div>
+            <div style={styles.fichaGrid}>
+              <div style={styles.fichaItem}>
+                <span style={styles.fichaKey}>Marca</span>
+                <span style={product?.brand ? styles.fichaVal : styles.fichaMissing}>{product?.brand || "Sin marca"}</span>
+              </div>
+              <div style={styles.fichaItem}>
+                <span style={styles.fichaKey}>Variantes / Talles</span>
+                <span style={fichaVariants ? styles.fichaVal : styles.fichaMissing}>{fichaVariants || "Sin variantes"}</span>
+              </div>
+              <div style={styles.fichaItem}>
+                <span style={styles.fichaKey}>Imágenes</span>
+                <span style={(product?.images?.length || 0) >= 3 ? styles.fichaVal : styles.fichaMissing}>
+                  {product?.images?.length || 0} {(product?.images?.length || 0) >= 3 ? "✓" : "(recomendado 3+)"}
+                </span>
+              </div>
+            </div>
+
 
             <div style={styles.sectionTitle}>Identificación del producto</div>
             <Field label="Nombre del producto" before={product?.name || ""} after={after.product_name || ""} status={after.product_name ? "generated" : "missing"} onApply={() => apply.mutate()} />
@@ -381,5 +406,10 @@ const styles: Record<string, React.CSSProperties> = {
   loading:{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontSize:14,color:"#888"},
   btnPrimary:{fontSize:13,padding:"8px 16px",background:"#534AB7",color:"white",border:"none",borderRadius:6,cursor:"pointer",fontWeight:500},
   actionBar:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 24px",background:"#F8F7FF",borderBottom:"1px solid #E5E3DB"},
+  fichaGrid:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16},
+  fichaItem:{display:"flex",flexDirection:"column",gap:4,background:"white",border:"1px solid #E5E3DB",borderRadius:8,padding:"10px 14px"},
+  fichaKey:{fontSize:10,fontWeight:600,color:"#888",textTransform:"uppercase",letterSpacing:"0.04em"},
+  fichaVal:{fontSize:13,color:"#2C2C2A"},
+  fichaMissing:{fontSize:13,color:"#E24B4A",fontStyle:"italic"},
   btnReject:{fontSize:13,padding:"8px 16px",background:"white",color:"#A32D2D",border:"1px solid #E5E3DB",borderRadius:6,cursor:"pointer",fontWeight:500},
 };

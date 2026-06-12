@@ -152,8 +152,10 @@ router.post("/api/stores/:storeId/sync-orders", async (req: Request, res: Respon
 router.get("/api/stores/:storeId/products", async (req: Request, res: Response) => {
   try {
     const { storeId } = req.params;
-    // Filtros: order, status (all|operative|hidden|no_stock), category
-    const { order = "score_asc", status = "all", category = "" } = req.query as Record<string, string>;
+    // Filtros: order, q (búsqueda), visibility (all|visible|hidden), stock (all|in|out), category
+    const {
+      order = "score_asc", q = "", visibility = "all", stock = "all", category = "",
+    } = req.query as Record<string, string>;
 
     const orderBy = order === "score_asc"
       ? asc(products_cache.seo_score)
@@ -170,6 +172,7 @@ router.get("/api/stores/:storeId/products", async (req: Request, res: Response) 
         seo_description: products_cache.seo_description,
         handle: products_cache.handle,
         brand: products_cache.brand,
+        variants: products_cache.variants,
         seo_score: products_cache.seo_score,
         seo_issues: products_cache.seo_issues,
         is_locked: products_cache.is_locked,
@@ -179,23 +182,36 @@ router.get("/api/stores/:storeId/products", async (req: Request, res: Response) 
       .where(eq(products_cache.store_id, storeId))
       .orderBy(orderBy);
 
-    // Estado operativo (tabla separada; si no existe aún, degrada sin filtros).
-    const opsMap = new Map<string, { published: boolean; stock: number | null; categories: string[]; ficha_score: number; ficha_missing: string[] }>();
+    // Stock calculado desde las variantes (funciona aunque falte product_ops).
+    const stockOf = (variants: any): number | null => {
+      const vs = Array.isArray(variants) ? variants : [];
+      if (!vs.length) return null;
+      const stocks = vs.map((v: any) => v.stock);
+      const anyInfinite = stocks.some((s: any) => s === null || s === undefined);
+      return anyInfinite ? null : stocks.reduce((a: number, s: any) => a + (Number(s) || 0), 0);
+    };
+
+    // Estado operativo (tabla separada; si no existe aún, degrada).
+    const opsMap = new Map<string, { published: boolean; categories: string[]; ficha_score: number; ficha_missing: string[] }>();
+    let opsSynced = false;
     try {
       const ops = await db.select().from(product_ops).where(eq(product_ops.store_id, storeId));
       for (const o of ops) opsMap.set(o.tn_product_id, {
-        published: o.published ?? true, stock: o.stock, categories: (o.categories as string[]) || [],
+        published: o.published ?? true, categories: (o.categories as string[]) || [],
         ficha_score: o.ficha_score ?? 0, ficha_missing: (o.ficha_missing as string[]) || [],
       });
+      opsSynced = ops.length > 0;
     } catch { /* product_ops sin migrar */ }
 
     const enriched = rows.map((p) => {
       const o = opsMap.get(p.tn_product_id);
-      const stock = o ? o.stock : null;
+      const st = stockOf(p.variants);
       const published = o ? o.published : true;
-      const operative = published && (stock === null || (stock ?? 0) > 0);
+      const hasStock = st === null || st > 0;
+      const { variants, ...rest } = p; // no mandamos las variantes crudas al cliente
       return {
-        ...p, published, stock, categories: o?.categories || [], operative,
+        ...rest, published, stock: st, has_stock: hasStock,
+        categories: o?.categories || [],
         ficha_score: o?.ficha_score ?? null, ficha_missing: o?.ficha_missing || [],
       };
     });
@@ -204,22 +220,27 @@ router.get("/api/stores/:storeId/products", async (req: Request, res: Response) 
     const categories = [...new Set(enriched.flatMap((p) => p.categories))].sort();
 
     let data = enriched;
-    if (status === "operative") data = data.filter((p) => p.operative);
-    else if (status === "hidden") data = data.filter((p) => !p.published);
-    else if (status === "no_stock") data = data.filter((p) => p.stock !== null && (p.stock ?? 0) <= 0);
+    if (q.trim()) {
+      const needle = q.trim().toLowerCase();
+      data = data.filter((p) => (p.name || "").toLowerCase().includes(needle));
+    }
+    if (visibility === "visible") data = data.filter((p) => p.published);
+    else if (visibility === "hidden") data = data.filter((p) => !p.published);
+    if (stock === "in") data = data.filter((p) => p.has_stock);
+    else if (stock === "out") data = data.filter((p) => !p.has_stock);
     if (category) data = data.filter((p) => p.categories.includes(category));
 
-    const operativeRows = enriched.filter((p) => p.operative);
-    const avgScore = operativeRows.length
-      ? Math.round(operativeRows.reduce((a, p) => a + (p.seo_score || 0), 0) / operativeRows.length)
+    const visibleInStock = enriched.filter((p) => p.published && p.has_stock);
+    const avgScore = visibleInStock.length
+      ? Math.round(visibleInStock.reduce((a, p) => a + (p.seo_score || 0), 0) / visibleInStock.length)
       : 0;
-    const critical = operativeRows.filter((p) => (p.seo_score || 0) < 30).length;
+    const critical = visibleInStock.filter((p) => (p.seo_score || 0) < 30).length;
 
     res.json({
       data,
       total: data.length,
       total_catalog: enriched.length,
-      operative_count: operativeRows.length,
+      operative_count: visibleInStock.length,
       avg_score: avgScore,
       critical,
       categories,
