@@ -126,5 +126,7 @@ export const product_ops = pgTable("product_ops", {
   published:       boolean("published").default(true),   // visible en la web
   stock:           integer("stock"),                     // null = sin control de stock (infinito)
   categories:      jsonb("categories").default([]),      // ["Remeras", "Verano"]
+  ficha_score:     integer("ficha_score").default(0),    // completitud de la ficha (0-100)
+  ficha_missing:   jsonb("ficha_missing").default([]),   // qué le falta a la ficha
   updated_at:      timestamp("updated_at").defaultNow(),
 });

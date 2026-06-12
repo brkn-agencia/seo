@@ -20,7 +20,7 @@ function getClient(apiKey: string) {
   return new Anthropic({ apiKey });
 }
 
-function buildPrompt(product: any, brandProfile: any): string {
+function buildPrompt(product: any, brandProfile: any, fichaMissing: string[] = []): string {
   const imgs: any[] = Array.isArray(product.images) ? product.images : [];
   const imagesBlock = imgs.length
     ? imgs
@@ -53,6 +53,15 @@ REGLAS ESTRICTAS:
 3. URL handle: solo minúsculas, guiones, sin caracteres especiales, descriptiva y corta
 4. Descripción: 2-3 párrafos, mencionar materiales/características, casos de uso, beneficios concretos. Optimizada para que una IA la cite en respuestas conversacionales.
 ${imgs.length ? `5. Alt text de imágenes: máximo 125 caracteres por imagen, descriptivo y con la keyword principal, sin empezar con "imagen de" ni "foto de". Una entrada por cada imagen listada, con su id exacto.` : ""}
+${fichaMissing.length ? `
+COMPLETAR FICHA — a esta ficha le faltan datos: ${fichaMissing.join("; ")}.
+Sugerí valores razonables para lo que falte, en el objeto "ficha". Reglas:
+- "brand": marca del producto si se puede inferir con confianza; si no, "".
+- "category": categoría/rubro sugerido (ej: "Remeras", "Calzado deportivo").
+- "material": material o composición principal si se puede inferir; si no, "".
+- "measures": medidas o talles sugeridos en texto breve; si no aplica, "".
+- "care": cuidado/lavado si corresponde; si no, "".
+No inventes datos críticos con falsa precisión: ante la duda, dejá el campo en "".` : ""}
 
 Respondé ÚNICAMENTE con un JSON válido, sin texto adicional, sin bloques de código:
 {
@@ -60,7 +69,8 @@ Respondé ÚNICAMENTE con un JSON válido, sin texto adicional, sin bloques de c
   "seo_description": "...",
   "handle": "...",
   "description": "..."${imgs.length ? `,
-  "images_alt": [${imgs.map((img) => `{ "id": "${img.id}", "alt": "..." }`).join(", ")}]` : ""}
+  "images_alt": [${imgs.map((img) => `{ "id": "${img.id}", "alt": "..." }`).join(", ")}]` : ""}${fichaMissing.length ? `,
+  "ficha": { "brand": "...", "category": "...", "material": "...", "measures": "...", "care": "..." }` : ""}
 }`;
 }
 
@@ -97,10 +107,19 @@ export async function generateSEO(
       where: eq((await import("@seo/db")).brand_profiles.store_id, storeId),
     });
 
+    // Qué le falta a la ficha (de product_ops). Si no está migrado, no falla.
+    let fichaMissing: string[] = [];
+    try {
+      const ops = await db.query.product_ops.findFirst({
+        where: eq((await import("@seo/db")).product_ops.id, productId),
+      });
+      fichaMissing = (ops?.ficha_missing as string[]) || [];
+    } catch { /* product_ops sin migrar */ }
+
     const client = getClient(claudeApiKey);
     const model = store.preferred_model || "claude-haiku-4-5";
 
-    const prompt = buildPrompt(product, brandProfile);
+    const prompt = buildPrompt(product, brandProfile, fichaMissing);
 
     const response = await client.messages.create({
       model,
