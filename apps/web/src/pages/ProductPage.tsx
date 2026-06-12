@@ -188,7 +188,9 @@ export default function ProductPage() {
             <div style={styles.fichaGrid}>
               <div style={styles.fichaItem}>
                 <span style={styles.fichaKey}>Marca</span>
-                <span style={product?.brand ? styles.fichaVal : styles.fichaMissing}>{product?.brand || "Sin marca"}</span>
+                <span style={product?.brand ? styles.fichaVal : styles.fichaSuggest}>
+                  {product?.brand || "Sin marca — la IA la sugerirá al generar"}
+                </span>
               </div>
               <div style={styles.fichaItem}>
                 <span style={styles.fichaKey}>Variantes / Talles</span>
@@ -196,9 +198,7 @@ export default function ProductPage() {
               </div>
               <div style={styles.fichaItem}>
                 <span style={styles.fichaKey}>Imágenes</span>
-                <span style={(product?.images?.length || 0) >= 3 ? styles.fichaVal : styles.fichaMissing}>
-                  {product?.images?.length || 0} {(product?.images?.length || 0) >= 3 ? "✓" : "(recomendado 3+)"}
-                </span>
+                <span style={styles.fichaSoon}>Próximamente</span>
               </div>
             </div>
 
@@ -411,5 +411,7 @@ const styles: Record<string, React.CSSProperties> = {
   fichaKey:{fontSize:10,fontWeight:600,color:"#888",textTransform:"uppercase",letterSpacing:"0.04em"},
   fichaVal:{fontSize:13,color:"#2C2C2A"},
   fichaMissing:{fontSize:13,color:"#E24B4A",fontStyle:"italic"},
+  fichaSuggest:{fontSize:13,color:"#854F0B",fontStyle:"italic"},
+  fichaSoon:{fontSize:12,color:"#888",fontStyle:"italic",background:"#F1EFE8",padding:"2px 8px",borderRadius:10,alignSelf:"flex-start"},
   btnReject:{fontSize:13,padding:"8px 16px",background:"white",color:"#A32D2D",border:"1px solid #E5E3DB",borderRadius:6,cursor:"pointer",fontWeight:500},
 };
