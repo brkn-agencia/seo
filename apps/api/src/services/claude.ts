@@ -48,11 +48,12 @@ ${brandProfile ? `PERFIL DE MARCA:
 - Contexto de la tienda: ${brandProfile.store_context || "ninguno"}` : ""}
 
 REGLAS ESTRICTAS:
-1. SEO title: máximo 60 caracteres, keyword principal al inicio, sin el nombre de la marca al final
-2. Meta description: entre 140 y 160 caracteres, incluir call-to-action implícito, mencionar atributos clave
-3. URL handle: solo minúsculas, guiones, sin caracteres especiales, descriptiva y corta
-4. Descripción: 2-3 párrafos, mencionar materiales/características, casos de uso, beneficios concretos. Optimizada para que una IA la cite en respuestas conversacionales.
-${imgs.length ? `5. Alt text de imágenes: máximo 125 caracteres por imagen, descriptivo y con la keyword principal, sin empezar con "imagen de" ni "foto de". Una entrada por cada imagen listada, con su id exacto.` : ""}
+1. Nombre del producto: claro y atractivo, con la keyword principal, sin códigos internos (ej: "7117-ANT") ni siglas. Máximo ~70 caracteres.
+2. SEO title: máximo 60 caracteres, keyword principal al inicio, sin el nombre de la marca al final
+3. Meta description: entre 140 y 160 caracteres, incluir call-to-action implícito, mencionar atributos clave
+4. URL handle: solo minúsculas, guiones, sin caracteres especiales, descriptiva y corta
+5. Descripción: 2-3 párrafos, mencionar materiales/características, casos de uso, beneficios concretos. Optimizada para que una IA la cite en respuestas conversacionales.
+${imgs.length ? `6. Alt text de imágenes: máximo 125 caracteres por imagen, descriptivo y con la keyword principal, sin empezar con "imagen de" ni "foto de". Una entrada por cada imagen listada, con su id exacto.` : ""}
 ${fichaMissing.length ? `
 COMPLETAR FICHA — a esta ficha le faltan datos: ${fichaMissing.join("; ")}.
 Sugerí valores razonables para lo que falte, en el objeto "ficha". Reglas:
@@ -65,6 +66,7 @@ No inventes datos críticos con falsa precisión: ante la duda, dejá el campo e
 
 Respondé ÚNICAMENTE con un JSON válido, sin texto adicional, sin bloques de código:
 {
+  "product_name": "...",
   "seo_title": "...",
   "seo_description": "...",
   "handle": "...",

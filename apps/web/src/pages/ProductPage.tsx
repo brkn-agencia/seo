@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { getProduct, generateSEO, getVersions, applyVersion, rejectVersion } from "../api";
+import { getProduct, generateSEO, getVersions, applyVersion, rejectVersion, updateProductBrand } from "../api";
 import { useState } from "react";
 
 function Field({ label, before, after, status, onApply, chars }: {
@@ -117,6 +117,14 @@ export default function ProductPage() {
     onSuccess: () => { setGenerated(null); qc.invalidateQueries({ queryKey: ["versions", productId] }); },
   });
 
+  const [editingBrand, setEditingBrand] = useState(false);
+  const [brandInput, setBrandInput] = useState("");
+  const saveBrand = useMutation({
+    mutationFn: () => updateProductBrand(storeId!, productId, brandInput.trim()),
+    onSuccess: () => { setEditingBrand(false); qc.invalidateQueries({ queryKey: ["product", productId] }); },
+    onError: (err: any) => alert("Error al guardar la marca: " + (err.response?.data?.error || err.message)),
+  });
+
   if (isLoading) return <div style={styles.loading}>Cargando producto...</div>;
 
   const scoreColor = (product?.seo_score || 0) >= 70 ? "#1D9E75" : (product?.seo_score || 0) >= 40 ? "#BA7517" : "#E24B4A";
@@ -187,10 +195,34 @@ export default function ProductPage() {
             <div style={styles.sectionTitle}>Datos actuales de la ficha</div>
             <div style={styles.fichaGrid}>
               <div style={styles.fichaItem}>
-                <span style={styles.fichaKey}>Marca</span>
-                <span style={product?.brand ? styles.fichaVal : styles.fichaSuggest}>
-                  {product?.brand || "Sin marca — la IA la sugerirá al generar"}
+                <span style={styles.fichaKey}>
+                  Marca
+                  {!editingBrand && (
+                    <span
+                      style={styles.fichaEdit}
+                      onClick={() => { setBrandInput(product?.brand || ""); setEditingBrand(true); }}
+                    >✎ editar</span>
+                  )}
                 </span>
+                {editingBrand ? (
+                  <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+                    <input
+                      value={brandInput}
+                      onChange={(e) => setBrandInput(e.target.value)}
+                      placeholder="Marca del producto"
+                      style={styles.brandInput}
+                      autoFocus
+                    />
+                    <button style={styles.brandSave} onClick={() => saveBrand.mutate()} disabled={saveBrand.isPending}>
+                      {saveBrand.isPending ? "..." : "Guardar"}
+                    </button>
+                    <button style={styles.brandCancel} onClick={() => setEditingBrand(false)}>✕</button>
+                  </div>
+                ) : (
+                  <span style={product?.brand ? styles.fichaVal : styles.fichaSuggest}>
+                    {product?.brand || "Sin marca — la IA la sugerirá al generar"}
+                  </span>
+                )}
               </div>
               <div style={styles.fichaItem}>
                 <span style={styles.fichaKey}>Variantes / Talles</span>
@@ -408,7 +440,11 @@ const styles: Record<string, React.CSSProperties> = {
   actionBar:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 24px",background:"#F8F7FF",borderBottom:"1px solid #E5E3DB"},
   fichaGrid:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16},
   fichaItem:{display:"flex",flexDirection:"column",gap:4,background:"white",border:"1px solid #E5E3DB",borderRadius:8,padding:"10px 14px"},
-  fichaKey:{fontSize:10,fontWeight:600,color:"#888",textTransform:"uppercase",letterSpacing:"0.04em"},
+  fichaKey:{fontSize:10,fontWeight:600,color:"#888",textTransform:"uppercase",letterSpacing:"0.04em",display:"flex",alignItems:"center",justifyContent:"space-between"},
+  fichaEdit:{fontSize:10,color:"#534AB7",cursor:"pointer",fontWeight:500,textTransform:"none",letterSpacing:0},
+  brandInput:{flex:1,fontSize:13,padding:"5px 8px",border:"1px solid #AFA9EC",borderRadius:6},
+  brandSave:{fontSize:12,padding:"5px 10px",background:"#534AB7",color:"white",border:"none",borderRadius:6,cursor:"pointer"},
+  brandCancel:{fontSize:12,padding:"5px 9px",background:"white",color:"#888",border:"1px solid #E5E3DB",borderRadius:6,cursor:"pointer"},
   fichaVal:{fontSize:13,color:"#2C2C2A"},
   fichaMissing:{fontSize:13,color:"#E24B4A",fontStyle:"italic"},
   fichaSuggest:{fontSize:13,color:"#854F0B",fontStyle:"italic"},

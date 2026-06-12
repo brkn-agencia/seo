@@ -33,6 +33,9 @@ export const getProduct = (storeId: string, productId: string) =>
 export const generateSEO = (storeId: string, productId: string) =>
   api.post(`/api/stores/${storeId}/products/${productId}/generate`).then(r => r.data);
 
+export const updateProductBrand = (storeId: string, productId: string, brand: string) =>
+  api.patch(`/api/stores/${storeId}/products/${productId}/brand`, { brand }).then(r => r.data);
+
 export const getVersions = (storeId: string, productId: string) =>
   api.get(`/api/stores/${storeId}/products/${productId}/versions`).then(r => r.data);
 

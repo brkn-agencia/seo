@@ -3,7 +3,7 @@ import { db, stores, products_cache, product_ops } from "@seo/db";
 import { eq, desc, asc } from "drizzle-orm";
 import { syncStore } from "../services/sync.js";
 import { syncOrders } from "../services/orders.js";
-import { encrypt } from "../lib/tn.js";
+import { encrypt, tnClient, tnLocalized } from "../lib/tn.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 const router = Router();
@@ -133,6 +133,32 @@ router.post("/api/stores/:storeId/sync", async (req: Request, res: Response) => 
   } catch (err: any) {
     console.error("Sync error:", err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── EDITAR MARCA DE UN PRODUCTO ───────────────────────────────────────────────
+router.patch("/api/stores/:storeId/products/:productId/brand", async (req: Request, res: Response) => {
+  try {
+    const { storeId, productId } = req.params;
+    const { brand } = req.body || {};
+    if (typeof brand !== "string") { res.status(400).json({ error: "Marca inválida" }); return; }
+
+    const product = await db.query.products_cache.findFirst({ where: eq(products_cache.id, productId) });
+    if (!product) { res.status(404).json({ error: "Producto no encontrado" }); return; }
+
+    const store = await db.query.stores.findFirst({ where: eq(stores.id, storeId) });
+    if (!store?.tn_access_token_enc || !store?.tn_store_id) {
+      res.status(400).json({ error: "Tienda sin token" }); return;
+    }
+
+    const client = tnClient(store.tn_store_id, store.tn_access_token_enc);
+    await client.put(`/products/${product.tn_product_id}`, { brand });
+    await db.update(products_cache).set({ brand, updated_at: new Date() }).where(eq(products_cache.id, productId));
+
+    res.json({ success: true, brand });
+  } catch (err: any) {
+    console.error("Brand update error:", err.response?.data || err.message);
+    res.status(500).json({ error: err.response?.data?.message || err.message });
   }
 });
 
