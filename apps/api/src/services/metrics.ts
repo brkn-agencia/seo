@@ -1,4 +1,4 @@
-import { db, products_cache, seo_versions, product_sales } from "@seo/db";
+import { db, products_cache, seo_versions, product_sales, product_ops } from "@seo/db";
 import { eq } from "drizzle-orm";
 
 // Estimación de trabajo manual que evita cada producto optimizado por IA
@@ -9,14 +9,17 @@ const DEFAULT_COST_PER_PRODUCT = 0.002;
 
 export interface StoreMetrics {
   seo: {
-    total: number;
+    total: number; // SOLO productos operativos (visibles + con stock)
+    total_catalog: number; // todo el catálogo
+    excluded: number; // ocultos o sin stock (no cuentan para las stats)
     avg_score: number;
     optimized: number; // score >= 80
-    optimization_pct: number; // % de productos con score >= 80
+    optimization_pct: number; // % de productos operativos con score >= 80
     needs_work: number; // score < 70
     critical: number; // score < 30
     distribution: { excellent: number; good: number; poor: number };
   };
+  ops_synced: boolean; // true si hay datos de stock/visibilidad sincronizados
   ai_cost: {
     total_usd: number;
     this_month_usd: number;
@@ -77,9 +80,36 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
     sales_synced = false;
   }
 
-  // ── SEO ────────────────────────────────────────────────────────────────────
-  const total = products.length;
-  const scores = products.map((p) => p.seo_score || 0);
+  // Estado operativo (opcional): visibilidad + stock. Si la tabla no existe,
+  // tratamos todo como operativo (no falsea las stats hacia abajo).
+  const opsByTnId = new Map<string, { published: boolean; stock: number | null }>();
+  let ops_synced = false;
+  try {
+    const ops = await db
+      .select()
+      .from(product_ops)
+      .where(eq(product_ops.store_id, storeId));
+    for (const o of ops) opsByTnId.set(o.tn_product_id, { published: o.published ?? true, stock: o.stock });
+    ops_synced = ops.length > 0;
+  } catch {
+    ops_synced = false;
+  }
+
+  // Operativo = visible en la web Y con stock (o sin control de stock).
+  // Si no hay dato de ops para ese producto, se asume operativo.
+  const isOperative = (p: any): boolean => {
+    const o = opsByTnId.get(p.tn_product_id);
+    if (!o) return true;
+    const hasStock = o.stock === null || (o.stock ?? 0) > 0;
+    return o.published && hasStock;
+  };
+
+  // ── SEO (solo productos operativos) ─────────────────────────────────────────
+  const operative = products.filter(isOperative);
+  const total = operative.length;
+  const total_catalog = products.length;
+  const excluded = total_catalog - total;
+  const scores = operative.map((p) => p.seo_score || 0);
   const avg_score = total ? Math.round(scores.reduce((a, b) => a + b, 0) / total) : 0;
   const optimized = scores.filter((s) => s >= 80).length;
   const needs_work = scores.filter((s) => s < 70).length;
@@ -108,8 +138,9 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
     ? round(total_usd / versions_generated, 4)
     : DEFAULT_COST_PER_PRODUCT;
 
-  // Productos que todavía no se optimizaron y necesitan trabajo.
-  const pending = products.filter((p) => !p.last_optimized_at && (p.seo_score || 0) < 70);
+  // Pendientes = SOLO operativos sin optimizar (no tiene sentido priorizar
+  // productos ocultos o sin stock).
+  const pending = operative.filter((p) => !p.last_optimized_at && (p.seo_score || 0) < 70);
   const estimated_cost_to_finish_usd = round(pending.length * avg_cost_per_product, 4);
 
   const byModelMap = new Map<string, { versions: number; cost_usd: number }>();
@@ -148,8 +179,8 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
   // ── SUGERENCIAS AUTOMÁTICAS ──────────────────────────────────────────────────
   const suggestions: { type: string; title: string; detail: string }[] = [];
 
-  // Quick wins: a un paso de un score excelente.
-  const quickWins = products.filter(
+  // Quick wins: a un paso de un score excelente (solo operativos).
+  const quickWins = operative.filter(
     (p) => !p.last_optimized_at && (p.seo_score || 0) >= 50 && (p.seo_score || 0) < 80
   ).length;
   if (quickWins > 0) {
@@ -198,6 +229,8 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
   return {
     seo: {
       total,
+      total_catalog,
+      excluded,
       avg_score,
       optimized,
       optimization_pct: optimization_pctOf(optimized, total),
@@ -205,6 +238,7 @@ export async function computeMetrics(storeId: string): Promise<StoreMetrics> {
       critical,
       distribution,
     },
+    ops_synced,
     ai_cost: {
       total_usd,
       this_month_usd,

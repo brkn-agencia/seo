@@ -115,3 +115,16 @@ export const product_sales = pgTable("product_sales", {
   last_order_at:   timestamp("last_order_at"),
   updated_at:      timestamp("updated_at").defaultNow(),
 });
+
+// ── PRODUCT OPS ───────────────────────────────────────────────────────────────
+// Estado operativo de cada producto (visibilidad, stock, categorías) para
+// priorizar y para que las métricas reflejen solo lo que se ve en la web.
+export const product_ops = pgTable("product_ops", {
+  id:              text("id").primaryKey(), // `${store_id}_${tn_product_id}`
+  store_id:        text("store_id").notNull().references(() => stores.id),
+  tn_product_id:   text("tn_product_id").notNull(),
+  published:       boolean("published").default(true),   // visible en la web
+  stock:           integer("stock"),                     // null = sin control de stock (infinito)
+  categories:      jsonb("categories").default([]),      // ["Remeras", "Verano"]
+  updated_at:      timestamp("updated_at").defaultNow(),
+});

@@ -1,7 +1,19 @@
 import axios from "axios";
-import { db, stores, products_cache } from "@seo/db";
+import { db, stores, products_cache, product_ops } from "@seo/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+
+// Estado operativo del producto: visible en la web, stock y categorías.
+function opsOf(p: any): { published: boolean; stock: number | null; categories: string[] } {
+  const variants = p.variants || [];
+  const stocks = variants.map((v: any) => v.stock);
+  const anyInfinite = stocks.some((s: any) => s === null || s === undefined);
+  const stock = anyInfinite ? null : stocks.reduce((a: number, s: any) => a + (Number(s) || 0), 0);
+  const categories = (p.categories || [])
+    .map((c: any) => tnText(c.name))
+    .filter(Boolean);
+  return { published: p.published !== false, stock, categories };
+}
 
 const TN_CLIENT_ID = process.env.TN_CLIENT_ID!;
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY!;
@@ -114,6 +126,19 @@ export async function syncStore(storeId: string): Promise<{ synced: number; erro
             last_analyzed_at: new Date(), updated_at: new Date(),
           },
         });
+
+        // Estado operativo (tabla separada; si no existe aún, no frena el sync).
+        try {
+          const ops = opsOf(p);
+          await db.insert(product_ops).values({
+            id: productId, store_id: storeId, tn_product_id: String(p.id),
+            published: ops.published, stock: ops.stock, categories: ops.categories, updated_at: new Date(),
+          }).onConflictDoUpdate({
+            target: product_ops.id,
+            set: { published: ops.published, stock: ops.stock, categories: ops.categories, updated_at: new Date() },
+          });
+        } catch (e: any) { /* product_ops sin migrar: se ignora */ }
+
         synced++;
       } catch (err: any) { console.error(`Error ${p.id}:`, err.message); errors++; }
     }

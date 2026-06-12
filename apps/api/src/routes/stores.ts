@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { db, stores, products_cache } from "@seo/db";
+import { db, stores, products_cache, product_ops } from "@seo/db";
 import { eq, desc, asc } from "drizzle-orm";
 import { syncStore } from "../services/sync.js";
 import { syncOrders } from "../services/orders.js";
@@ -152,7 +152,8 @@ router.post("/api/stores/:storeId/sync-orders", async (req: Request, res: Respon
 router.get("/api/stores/:storeId/products", async (req: Request, res: Response) => {
   try {
     const { storeId } = req.params;
-    const { order = "score_asc" } = req.query;
+    // Filtros: order, status (all|operative|hidden|no_stock), category
+    const { order = "score_asc", status = "all", category = "" } = req.query as Record<string, string>;
 
     const orderBy = order === "score_asc"
       ? asc(products_cache.seo_score)
@@ -160,7 +161,7 @@ router.get("/api/stores/:storeId/products", async (req: Request, res: Response) 
       ? desc(products_cache.seo_score)
       : desc(products_cache.created_at);
 
-    const products = await db
+    const rows = await db
       .select({
         id: products_cache.id,
         tn_product_id: products_cache.tn_product_id,
@@ -178,17 +179,47 @@ router.get("/api/stores/:storeId/products", async (req: Request, res: Response) 
       .where(eq(products_cache.store_id, storeId))
       .orderBy(orderBy);
 
-    const avgScore = products.length
-      ? Math.round(products.reduce((a, p) => a + (p.seo_score || 0), 0) / products.length)
-      : 0;
+    // Estado operativo (tabla separada; si no existe aún, degrada sin filtros).
+    const opsMap = new Map<string, { published: boolean; stock: number | null; categories: string[] }>();
+    try {
+      const ops = await db.select().from(product_ops).where(eq(product_ops.store_id, storeId));
+      for (const o of ops) opsMap.set(o.tn_product_id, {
+        published: o.published ?? true, stock: o.stock, categories: (o.categories as string[]) || [],
+      });
+    } catch { /* product_ops sin migrar */ }
 
-    const critical = products.filter(p => (p.seo_score || 0) < 30).length;
+    const enriched = rows.map((p) => {
+      const o = opsMap.get(p.tn_product_id);
+      const stock = o ? o.stock : null;
+      const published = o ? o.published : true;
+      const operative = published && (stock === null || (stock ?? 0) > 0);
+      return { ...p, published, stock, categories: o?.categories || [], operative };
+    });
+
+    // Categorías disponibles para el selector de filtros.
+    const categories = [...new Set(enriched.flatMap((p) => p.categories))].sort();
+
+    let data = enriched;
+    if (status === "operative") data = data.filter((p) => p.operative);
+    else if (status === "hidden") data = data.filter((p) => !p.published);
+    else if (status === "no_stock") data = data.filter((p) => p.stock !== null && (p.stock ?? 0) <= 0);
+    if (category) data = data.filter((p) => p.categories.includes(category));
+
+    const operativeRows = enriched.filter((p) => p.operative);
+    const avgScore = operativeRows.length
+      ? Math.round(operativeRows.reduce((a, p) => a + (p.seo_score || 0), 0) / operativeRows.length)
+      : 0;
+    const critical = operativeRows.filter((p) => (p.seo_score || 0) < 30).length;
 
     res.json({
-      data: products,
-      total: products.length,
+      data,
+      total: data.length,
+      total_catalog: enriched.length,
+      operative_count: operativeRows.length,
       avg_score: avgScore,
       critical,
+      categories,
+      ops_synced: opsMap.size > 0,
     });
   } catch (err) {
     res.status(500).json({ error: "Error al obtener productos" });
