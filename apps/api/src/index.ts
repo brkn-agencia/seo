@@ -7,6 +7,7 @@ import seoRouter from "./routes/seo.js";
 import jobsRouter from "./routes/jobs.js";
 import metricsRouter from "./routes/metrics.js";
 import { startScheduler } from "./services/scheduler.js";
+import { runMigrations } from "@seo/db";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -74,10 +75,11 @@ app.use((req, res) => {
   res.sendFile(path.join(webDist, "index.html"));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 SEO Agency API corriendo en puerto ${PORT}`);
   console.log(`   Health:  https://seo.bruda.io/health`);
   console.log(`   Stores:  https://seo.bruda.io/api/stores`);
+  await runMigrations();
   startScheduler();
 });
 
